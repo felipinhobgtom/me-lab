@@ -1,0 +1,216 @@
+[
+  {
+    "id": "ae2:inscriber",
+    "name": "Inscriber",
+    "category": "machines",
+    "behavior_key": "external_machine",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/inscriber",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 0,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "AE2 press machine used to stamp Logic, Calculation, Engineering, and Silicon circuits via processing patterns.",
+      "connection_rules": {
+        "connect_all_faces": false
+      },
+      "config_schema": [
+        {
+          "key": "process_ticks",
+          "label": "Press Ticks",
+          "type": "number",
+          "default": 6,
+          "description": "Ticks required to stamp one item."
+        }
+      ],
+      "visual": {
+        "color": "#9ca3af",
+        "accent_color": "#a855f7",
+        "shape": "frame",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:charger",
+    "name": "Charger",
+    "category": "machines",
+    "behavior_key": "external_machine",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/charger",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 0,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Charges Certus Quartz Crystals and tools using network AE power.",
+      "connection_rules": {
+        "connect_all_faces": false
+      },
+      "visual": {
+        "color": "#6b7280",
+        "accent_color": "#38bdf8",
+        "shape": "frame",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "minecraft:furnace",
+    "name": "Furnace",
+    "category": "machines",
+    "behavior_key": "external_machine",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/autocrafting#processing-patterns",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 0,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Vanilla Minecraft Furnace executing smelting processing patterns pushed from a Pattern Provider or Export Bus.",
+      "connection_rules": {
+        "connect_all_faces": false
+      },
+      "config_schema": [
+        {
+          "key": "process_ticks",
+          "label": "Smelt Ticks",
+          "type": "number",
+          "default": 8,
+          "description": "Simulation ticks per smelting operation."
+        },
+        {
+          "key": "auto_return",
+          "label": "Return Output to Network",
+          "type": "boolean",
+          "default": true,
+          "description": "Returns smelted items via adjacent Hopper, Import Bus, or Pattern Provider."
+        }
+      ],
+      "visual": {
+        "color": "#737373",
+        "accent_color": "#f97316",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "minecraft:blast_furnace",
+    "name": "Blast Furnace",
+    "category": "machines",
+    "behavior_key": "external_machine",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/autocrafting#processing-patterns",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 0,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Vanilla Blast Furnace smelting ores and metals at 2x Furnace speed.",
+      "connection_rules": {
+        "connect_all_faces": false
+      },
+      "config_schema": [
+        {
+          "key": "process_ticks",
+          "label": "Smelt Ticks",
+          "type": "number",
+          "default": 4,
+          "description": "Simulation ticks per smelting operation."
+        }
+      ],
+      "visual": {
+        "color": "#525252",
+        "accent_color": "#fb923c",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "minecraft:hopper",
+    "name": "Hopper",
+    "category": "machines",
+    "behavior_key": "hopper",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/autocrafting#processing-patterns",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 0,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Pulls completed items from the block above (e.g. Furnace) and pushes them into the target block in its Facing direction.",
+      "connection_rules": {
+        "connect_all_faces": false
+      },
+      "visual": {
+        "color": "#4b5563",
+        "accent_color": "#374151",
+        "shape": "frame",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "minecraft:barrel",
+    "name": "Barrel",
+    "category": "machines",
+    "behavior_key": "external_machine",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/import-export-storage",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 0,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "27-slot vanilla container used as a buffer inventory for Pattern Providers, Storage Buses, and Hoppers.",
+      "connection_rules": {
+        "connect_all_faces": false
+      },
+      "visual": {
+        "color": "#92400e",
+        "accent_color": "#b45309",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  }
+]

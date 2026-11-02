@@ -6,8 +6,8 @@
 
 ## Screenshots
 
-### 1. Workspace Projects & Acceptance Fixtures
-![Workspace Projects Dashboard](docs/screenshots/01-projects-dashboard.png)
+### 1. Immediate Empty 3D Sandbox
+![Empty AE2 Sandbox with block hotbar and simulation console](docs/screenshots/07-empty-sandbox.png)
 
 ### 2. 3D Voxel CAD Workspace & Live Smart-Cable Channel Overlays
 ![3D Workspace Editor and Channel Overlays](docs/screenshots/02-3d-workspace-editor.png)
@@ -23,6 +23,9 @@
 
 ### 6. Human-Readable Build Sheet & Bill of Materials Export
 ![Markdown Build Sheet Export](docs/screenshots/06-build-sheet-export.png)
+
+### 7. Guide Showcase Preset with Live Diagnostics
+![Textured AE2 showcase preset with simulation diagnostics](docs/screenshots/08-guide-showcase-sandbox.png)
 
 ---
 

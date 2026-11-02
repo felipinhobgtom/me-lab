@@ -1,163 +1,589 @@
-import type { BatchBlockOperation, Direction } from '../../lib/api'
+import type { BatchBlockOperation } from '@/lib/api'
 
-function createOp(
-  block_def_id: string,
-  x: number,
-  y: number,
-  z: number,
-  facing: Direction = 'north',
-  config: Record<string, unknown> = {},
-  label?: string
-): BatchBlockOperation {
-  return {
-    operation: 'create',
-    data: {
-      block_def_id,
-      x,
-      y,
-      z,
-      facing,
-      config,
-      ...(label ? { label } : {}),
+export interface SandboxPreset {
+  id: string
+  name: string
+  description: string
+  operations: BatchBlockOperation[]
+}
+
+/**
+ * Complete AE2 1.21.1 installation modeled after the official AE2 Guide 3D showcase:
+ * - Main network: ME Controller + ME Drive + Energy Acceptor + 3 Terminals on Blue Smart Cable + Blue Dense Smart trunk
+ * - 2x3x1 Crafting CPU tower (Co-Processors + 16k Crafting Storage + Crafting Monitor) + 1x1x1 auxiliary CPU
+ * - 2x2x2 Molecular Assembler & Pattern Provider cube
+ * - Quartz Fiber-bridged Green Smart Cable subnetwork with Furnace + Hopper -> Pattern Provider + Inscriber
+ */
+export const GUIDE_SHOWCASE_PRESET: SandboxPreset = {
+  id: 'guide-showcase',
+  name: 'AE2 Complete Base Setup',
+  description:
+    'Controller, ME Drive, 3 Terminals, Dense/Smart trunks, 2x3x1 Crafting CPU, 2x2x2 Assembler cube, and Furnace/Hopper/Inscriber processing branch.',
+  operations: [
+    // Front Core Row (Z = 1, Y = 0)
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:energy_acceptor',
+        x: 0,
+        y: 0,
+        z: 1,
+        facing: 'south',
+        config: { fe_input_per_tick: 1600 },
+      },
     },
-  }
-}
-
-export function buildValidAutocraftingFixtureOps(): BatchBlockOperation[] {
-  return [
-    // Energy subsystem
-    createOp(
-      'ae2:energy_acceptor',
-      -1,
-      0,
-      0,
-      'north',
-      { fe_input_per_tick: 800 },
-      'Main FE Intake'
-    ),
-    createOp(
-      'ae2:energy_cell',
-      -1,
-      1,
-      0,
-      'north',
-      { initial_charge_pct: 100 },
-      'Buffer Cell'
-    ),
-
-    // ME Controller core
-    createOp('ae2:controller', 0, 0, 0, 'north', {}, 'Core Controller'),
-
-    // Dense trunk + Smart cable branch
-    createOp(
-      'ae2:dense_smart_cable',
-      1,
-      0,
-      0,
-      'north',
-      { color: 'fluix', anchored_faces: [] },
-      'Dense Trunk W'
-    ),
-    createOp(
-      'ae2:dense_smart_cable',
-      2,
-      0,
-      0,
-      'north',
-      { color: 'fluix', anchored_faces: [] },
-      'Dense Trunk E'
-    ),
-    createOp('ae2:smart_cable', 3, 0, 0, 'north', { color: 'fluix', anchored_faces: [] }),
-    createOp('ae2:smart_cable', 3, 0, 1, 'north', { color: 'fluix', anchored_faces: [] }),
-
-    // Primary ME Drive with oak_log & iron_ingot inventory
-    createOp(
-      'ae2:drive',
-      2,
-      0,
-      1,
-      'north',
-      {
-        priority: 10,
-        cells: [
-          {
-            tier: '4k',
-            partition: [],
-            inverter: false,
-            items: [
-              { item_id: 'minecraft:oak_log', quantity: 64 },
-              { item_id: 'minecraft:iron_ingot', quantity: 32 },
-            ],
-          },
-        ],
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:drive',
+        x: 1,
+        y: 0,
+        z: 1,
+        facing: 'south',
+        config: {
+          priority: 10,
+          cells: [
+            {
+              tier: '16k',
+              partition: [],
+              inverter: false,
+              items: [
+                { item_id: 'minecraft:oak_log', quantity: 128 },
+                { item_id: 'minecraft:raw_iron', quantity: 64 },
+              ],
+            },
+            {
+              tier: '4k',
+              partition: [],
+              inverter: false,
+              items: [
+                { item_id: 'ae2:certus_quartz_crystal', quantity: 64 },
+                { item_id: 'minecraft:redstone', quantity: 64 },
+              ],
+            },
+            { tier: '4k', partition: [], inverter: false, items: [] },
+            { tier: '64k', partition: [], inverter: false, items: [] },
+          ],
+        },
       },
-      'Primary Storage Drive'
-    ),
-
-    // Operator terminal
-    createOp('ae2:crafting_terminal', 3, 1, 0, 'south', {}, 'Main Crafting Terminal'),
-
-    // 1x2x1 Crafting CPU multiblock (4k Storage + Co-Processor)
-    createOp('ae2:crafting_storage_4k', 1, 0, -1, 'north', {}, 'CPU 4k Storage'),
-    createOp('ae2:crafting_co_processor', 1, 1, -1, 'north', {}, 'CPU Co-Processor'),
-
-    // Autocrafting Pattern Provider + 2 adjacent Molecular Assemblers
-    createOp(
-      'ae2:pattern_provider',
-      4,
-      0,
-      0,
-      'east',
-      {
-        priority: 5,
-        variant: 'normal',
-        blocking_mode: false,
-        lock_mode: 'none',
-        patterns: [
-          {
-            id: 'pat-planks',
-            pattern_type: 'crafting',
-            inputs: [{ item_id: 'minecraft:oak_log', quantity: 1 }],
-            outputs: [{ item_id: 'minecraft:oak_planks', quantity: 4 }],
-          },
-          {
-            id: 'pat-chest',
-            pattern_type: 'crafting',
-            inputs: [{ item_id: 'minecraft:oak_planks', quantity: 8 }],
-            outputs: [{ item_id: 'minecraft:chest', quantity: 1 }],
-          },
-        ],
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:controller',
+        x: 2,
+        y: 0,
+        z: 1,
+        facing: 'south',
+        config: {},
       },
-      'Woodshop Provider'
+    },
+
+    // Blue Dense Smart Cable Trunk (Right & Back to Controller/CPU/Assemblers)
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:dense_smart_cable',
+        x: 3,
+        y: 0,
+        z: 1,
+        facing: 'north',
+        config: { color: 'blue', anchored_faces: [], subparts: {} },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:dense_smart_cable',
+        x: 4,
+        y: 0,
+        z: 1,
+        facing: 'north',
+        config: { color: 'blue', anchored_faces: [], subparts: {} },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:dense_smart_cable',
+        x: 4,
+        y: 0,
+        z: 0,
+        facing: 'north',
+        config: { color: 'blue', anchored_faces: [], subparts: {} },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:dense_smart_cable',
+        x: 2,
+        y: 0,
+        z: 0,
+        facing: 'north',
+        config: { color: 'blue', anchored_faces: [], subparts: {} },
+      },
+    },
+
+    // Blue Smart Cable + 3 Illuminated Terminals (Y = 1, Z = 1)
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:smart_cable',
+        x: 0,
+        y: 1,
+        z: 1,
+        facing: 'south',
+        config: {
+          color: 'blue',
+          anchored_faces: [],
+          subparts: { south: 'ae2:terminal' },
+        },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:smart_cable',
+        x: 1,
+        y: 1,
+        z: 1,
+        facing: 'south',
+        config: {
+          color: 'blue',
+          anchored_faces: [],
+          subparts: { south: 'ae2:crafting_terminal' },
+        },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:smart_cable',
+        x: 2,
+        y: 1,
+        z: 1,
+        facing: 'south',
+        config: {
+          color: 'blue',
+          anchored_faces: [],
+          subparts: { south: 'ae2:pattern_encoding_terminal' },
+        },
+      },
+    },
+    // Blue Smart drop on left with Quartz Fiber bridge to Green processing subnetwork
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:smart_cable',
+        x: -1,
+        y: 1,
+        z: 1,
+        facing: 'west',
+        config: {
+          color: 'blue',
+          anchored_faces: [],
+          subparts: { west: 'ae2:quartz_fiber' },
+        },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:smart_cable',
+        x: -1,
+        y: 0,
+        z: 1,
+        facing: 'north',
+        config: { color: 'blue', anchored_faces: [], subparts: {} },
+      },
+    },
+
+    // Back-Center 2x3x1 Crafting CPU Multiblock Tower (X = 0..1, Y = 0..2, Z = -1)
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:crafting_storage_16k',
+        x: 0,
+        y: 0,
+        z: -1,
+        facing: 'south',
+        config: {},
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:crafting_co_processor',
+        x: 1,
+        y: 0,
+        z: -1,
+        facing: 'south',
+        config: {},
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:crafting_co_processor',
+        x: 0,
+        y: 1,
+        z: -1,
+        facing: 'south',
+        config: {},
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:crafting_co_processor',
+        x: 1,
+        y: 1,
+        z: -1,
+        facing: 'south',
+        config: {},
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:crafting_co_processor',
+        x: 0,
+        y: 2,
+        z: -1,
+        facing: 'south',
+        config: {},
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:crafting_monitor',
+        x: 1,
+        y: 2,
+        z: -1,
+        facing: 'south',
+        config: {},
+      },
+    },
+    // Connect Controller trunk to CPU tower + Secondary 4k CPU block at (2, 1, -1)
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:dense_smart_cable',
+        x: 2,
+        y: 0,
+        z: -1,
+        facing: 'north',
+        config: { color: 'blue', anchored_faces: [], subparts: {} },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:crafting_storage_4k',
+        x: 2,
+        y: 1,
+        z: -1,
+        facing: 'south',
+        config: {},
+      },
+    },
+
+    // Back-Right 2x2x2 Molecular Assembler + Pattern Provider Checkerboard Cube (X = 3..4, Y = 0..1, Z = -2..-1)
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:pattern_provider',
+        x: 3,
+        y: 0,
+        z: -1,
+        facing: 'north',
+        config: {
+          priority: 10,
+          variant: 'normal',
+          blocking_mode: false,
+          lock_mode: 'none',
+          patterns: [
+            {
+              id: 'pat-planks',
+              pattern_type: 'crafting',
+              inputs: [{ item_id: 'minecraft:oak_log', quantity: 1 }],
+              outputs: [{ item_id: 'minecraft:oak_planks', quantity: 4 }],
+            },
+            {
+              id: 'pat-chest',
+              pattern_type: 'crafting',
+              inputs: [{ item_id: 'minecraft:oak_planks', quantity: 8 }],
+              outputs: [{ item_id: 'minecraft:chest', quantity: 1 }],
+            },
+          ],
+        },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:molecular_assembler',
+        x: 4,
+        y: 0,
+        z: -1,
+        facing: 'south',
+        config: {},
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:molecular_assembler',
+        x: 3,
+        y: 1,
+        z: -1,
+        facing: 'south',
+        config: {},
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:pattern_provider',
+        x: 4,
+        y: 1,
+        z: -1,
+        facing: 'north',
+        config: { priority: 5, variant: 'normal', blocking_mode: false, lock_mode: 'none', patterns: [] },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:molecular_assembler',
+        x: 3,
+        y: 0,
+        z: -2,
+        facing: 'south',
+        config: {},
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:pattern_provider',
+        x: 4,
+        y: 0,
+        z: -2,
+        facing: 'north',
+        config: { priority: 5, variant: 'normal', blocking_mode: false, lock_mode: 'none', patterns: [] },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:pattern_provider',
+        x: 3,
+        y: 1,
+        z: -2,
+        facing: 'north',
+        config: { priority: 5, variant: 'normal', blocking_mode: false, lock_mode: 'none', patterns: [] },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:molecular_assembler',
+        x: 4,
+        y: 1,
+        z: -2,
+        facing: 'south',
+        config: {},
+      },
+    },
+
+    // Left Furnace + Hopper + Inscriber Processing Branch (X = -2 .. -4)
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:pattern_provider',
+        x: -2,
+        y: 0,
+        z: 1,
+        facing: 'up',
+        config: {
+          priority: 5,
+          variant: 'normal',
+          blocking_mode: false,
+          lock_mode: 'none',
+          patterns: [
+            {
+              id: 'pat-iron',
+              pattern_type: 'processing',
+              inputs: [{ item_id: 'minecraft:raw_iron', quantity: 1 }],
+              outputs: [{ item_id: 'minecraft:iron_ingot', quantity: 1 }],
+            },
+          ],
+        },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'minecraft:furnace',
+        x: -3,
+        y: 1,
+        z: 1,
+        facing: 'south',
+        config: { process_ticks: 6, auto_return: true },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'minecraft:hopper',
+        x: -3,
+        y: 0,
+        z: 1,
+        facing: 'east',
+        config: {},
+      },
+    },
+    // Green Smart Cable subnetwork feeding Furnace & Inscriber
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:smart_cable',
+        x: -2,
+        y: 1,
+        z: 1,
+        facing: 'north',
+        config: { color: 'green', anchored_faces: [], subparts: {} },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:smart_cable',
+        x: -2,
+        y: 2,
+        z: 1,
+        facing: 'north',
+        config: { color: 'green', anchored_faces: [], subparts: {} },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:smart_cable',
+        x: -3,
+        y: 2,
+        z: 1,
+        facing: 'down',
+        config: {
+          color: 'green',
+          anchored_faces: [],
+          subparts: { down: 'ae2:export_bus' },
+        },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:inscriber',
+        x: -4,
+        y: 0,
+        z: 1,
+        facing: 'south',
+        config: { process_ticks: 6 },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:smart_cable',
+        x: -4,
+        y: 1,
+        z: 1,
+        facing: 'down',
+        config: {
+          color: 'green',
+          anchored_faces: [],
+          subparts: { down: 'ae2:import_bus' },
+        },
+      },
+    },
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:smart_cable',
+        x: -4,
+        y: 2,
+        z: 1,
+        facing: 'north',
+        config: { color: 'green', anchored_faces: [], subparts: {} },
+      },
+    },
+  ],
+}
+
+export const FAULT_OVERLOAD_PRESET: SandboxPreset = {
+  id: 'channel-fault',
+  name: 'Ad-Hoc Channel Overload (Fault Demo)',
+  description:
+    'Controllerless ad-hoc network with 10 channel-consuming ME Drives exceeding the 8-channel limit.',
+  operations: [
+    {
+      operation: 'create',
+      data: {
+        block_def_id: 'ae2:energy_acceptor',
+        x: -1,
+        y: 0,
+        z: 0,
+        facing: 'south',
+        config: { fe_input_per_tick: 800 },
+      },
+    },
+    ...[0, 1, 2, 3, 4].map(
+      (x): BatchBlockOperation => ({
+        operation: 'create',
+        data: {
+          block_def_id: 'ae2:smart_cable',
+          x,
+          y: 0,
+          z: 0,
+          facing: 'north',
+          config: { color: 'fluix', anchored_faces: [], subparts: {} },
+        },
+      })
     ),
-    createOp('ae2:molecular_assembler', 5, 0, 0, 'north', {}, 'Assembler East'),
-    createOp('ae2:molecular_assembler', 4, 1, 0, 'north', {}, 'Assembler Top'),
-  ]
+    ...[0, 1, 2, 3, 4].map(
+      (x): BatchBlockOperation => ({
+        operation: 'create',
+        data: {
+          block_def_id: 'ae2:drive',
+          x,
+          y: 0,
+          z: -1,
+          facing: 'south',
+          config: { priority: 0, cells: [{ tier: '4k', items: [] }] },
+        },
+      })
+    ),
+    ...[0, 1, 2, 3, 4].map(
+      (x): BatchBlockOperation => ({
+        operation: 'create',
+        data: {
+          block_def_id: 'ae2:drive',
+          x,
+          y: 0,
+          z: 1,
+          facing: 'south',
+          config: { priority: 0, cells: [{ tier: '4k', items: [] }] },
+        },
+      })
+    ),
+  ],
 }
 
-export function buildChannelBottleneckFixtureOps(): BatchBlockOperation[] {
-  return [
-    // Powered ad-hoc network WITHOUT an ME Controller
-    createOp('ae2:energy_acceptor', -1, 0, 0, 'north', { fe_input_per_tick: 800 }),
-    createOp('ae2:energy_cell', -1, 1, 0, 'north', { initial_charge_pct: 100 }),
-
-    // Smart cable spine (capacity 8, no controller -> ad-hoc 8 channel max)
-    createOp('ae2:smart_cable', 0, 0, 0, 'north', { color: 'fluix', anchored_faces: [] }),
-    createOp('ae2:smart_cable', 1, 0, 0, 'north', { color: 'fluix', anchored_faces: [] }),
-    createOp('ae2:smart_cable', 2, 0, 0, 'north', { color: 'fluix', anchored_faces: [] }),
-    createOp('ae2:smart_cable', 3, 0, 0, 'north', { color: 'fluix', anchored_faces: [] }),
-    createOp('ae2:smart_cable', 4, 0, 0, 'north', { color: 'fluix', anchored_faces: [] }),
-
-    // 10 channel-consuming devices (exceeding 8-channel ad-hoc limit!)
-    createOp('ae2:drive', 0, 0, 1, 'south', { priority: 10, cells: [{ tier: '1k', items: [] }] }, 'Drive 1'),
-    createOp('ae2:drive', 1, 0, 1, 'south', { priority: 9, cells: [{ tier: '1k', items: [] }] }, 'Drive 2'),
-    createOp('ae2:drive', 2, 0, 1, 'south', { priority: 8, cells: [{ tier: '1k', items: [] }] }, 'Drive 3'),
-    createOp('ae2:drive', 3, 0, 1, 'south', { priority: 7, cells: [{ tier: '1k', items: [] }] }, 'Drive 4'),
-    createOp('ae2:crafting_terminal', 4, 0, 1, 'south', {}, 'Crafting Term'),
-    createOp('ae2:terminal', 0, 0, -1, 'north', {}, 'Access Term 1'),
-    createOp('ae2:terminal', 1, 0, -1, 'north', {}, 'Access Term 2'),
-    createOp('ae2:terminal', 2, 0, -1, 'north', {}, 'Access Term 3'),
-    createOp('ae2:pattern_provider', 3, 0, -1, 'north', { priority: 0, variant: 'normal', patterns: [] }, 'Provider 1'),
-    createOp('ae2:pattern_provider', 4, 0, -1, 'north', { priority: 0, variant: 'normal', patterns: [] }, 'Provider 2'),
-  ]
-}
+export const SANDBOX_PRESETS: readonly SandboxPreset[] = [
+  GUIDE_SHOWCASE_PRESET,
+  FAULT_OVERLOAD_PRESET,
+]

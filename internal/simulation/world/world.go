@@ -12,19 +12,21 @@ import (
 
 // Node wraps a PlacedBlock with normalized catalog metadata and precomputed connectivity attributes.
 type Node struct {
-	Block         domain.PlacedBlock
-	Def           domain.BlockDefinition
-	Coord         domain.Coord3D
-	Facing        domain.Direction
-	IsMENode      bool
-	IsUnsupported bool
-	IsController  bool
-	IsCable       bool
-	IsDenseCable  bool
-	IsSmartCable  bool
-	IsCPUBlock    bool
-	CableColor    string
-	AnchoredFaces map[domain.Direction]bool
+	Block            domain.PlacedBlock
+	Def              domain.BlockDefinition
+	Coord            domain.Coord3D
+	Facing           domain.Direction
+	IsMENode         bool
+	IsUnsupported    bool
+	IsController     bool
+	IsCable          bool
+	IsDenseCable     bool
+	IsSmartCable     bool
+	IsCPUBlock       bool
+	CableColor       string
+	AnchoredFaces    map[domain.Direction]bool
+	QuartzFiberFaces map[domain.Direction]bool
+	SubpartsByFace   map[domain.Direction]string
 }
 
 // World holds the deterministic 3D block topology and ME face-connectivity graph.
@@ -185,13 +187,25 @@ func buildNode(b domain.PlacedBlock, def domain.BlockDefinition) *Node {
 	id := b.BlockDefID
 	bkey := def.BehaviorKey
 
+	quartzFaces := make(map[domain.Direction]bool)
+	subparts := parseSubpartsByFace(b.Config)
+	for dir, subID := range subparts {
+		switch subID {
+		case "ae2:cable_anchor":
+			anchored[dir] = true
+		case "ae2:quartz_fiber":
+			anchored[dir] = true
+			quartzFaces[dir] = true
+		}
+	}
+
 	isUnsupported := def.Fidelity == domain.FidelityUnsupported || bkey == "unsupported" || isPostMVPUnsupportedID(id)
-	isAnchor := id == "ae2:cable_anchor" || bkey == "cable_anchor"
-	isExtMachine := id == "melab:external_machine" || bkey == "external_machine"
+	isAnchor := id == "ae2:cable_anchor" || bkey == "cable_anchor" || id == "ae2:quartz_fiber" || bkey == "quartz_fiber"
+	isExtMachine := isExternalMachineOrContainer(id, bkey)
 	isMENode := !isUnsupported && !isAnchor && !isExtMachine
 
 	isCable := def.Metadata.IsCable ||
-		id == "ae2:fluix_cable" || id == "ae2:smart_cable" ||
+		id == "ae2:fluix_cable" || id == "ae2:covered_cable" || id == "ae2:smart_cable" ||
 		id == "ae2:dense_cable" || id == "ae2:dense_smart_cable" ||
 		bkey == "cable" || bkey == "fluix_cable" || bkey == "smart_cable" ||
 		bkey == "dense_cable" || bkey == "dense_smart_cable"
@@ -203,7 +217,6 @@ func buildNode(b domain.PlacedBlock, def domain.BlockDefinition) *Node {
 	isSmart := def.Metadata.IsSmartCable ||
 		id == "ae2:smart_cable" || id == "ae2:dense_smart_cable" ||
 		bkey == "smart_cable" || bkey == "dense_smart_cable"
-
 	isController := id == "ae2:controller" || bkey == "controller"
 	isCPU := isCraftingCPUBlock(id, def)
 
@@ -216,19 +229,21 @@ func buildNode(b domain.PlacedBlock, def domain.BlockDefinition) *Node {
 	}
 
 	return &Node{
-		Block:         b,
-		Def:           def,
-		Coord:         b.Coord(),
-		Facing:        facing,
-		IsMENode:      isMENode,
-		IsUnsupported: isUnsupported,
-		IsController:  isController,
-		IsCable:       isCable,
-		IsDenseCable:  isDense,
-		IsSmartCable:  isSmart,
-		IsCPUBlock:    isCPU,
-		CableColor:    color,
-		AnchoredFaces: anchored,
+		Block:            b,
+		Def:              def,
+		Coord:            b.Coord(),
+		Facing:           facing,
+		IsMENode:         isMENode,
+		IsUnsupported:    isUnsupported,
+		IsController:     isController,
+		IsCable:          isCable,
+		IsDenseCable:     isDense,
+		IsSmartCable:     isSmart,
+		IsCPUBlock:       isCPU,
+		CableColor:       color,
+		AnchoredFaces:    anchored,
+		QuartzFiberFaces: quartzFaces,
+		SubpartsByFace:   subparts,
 	}
 }
 
@@ -256,7 +271,7 @@ func enrichCanonicalDefaults(id string, def domain.BlockDefinition) domain.Block
 	}
 
 	switch id {
-	case "ae2:fluix_cable":
+	case "ae2:fluix_cable", "ae2:covered_cable":
 		def.Metadata.IsCable = true
 		def.Metadata.TransmitsChannels = true
 	case "ae2:smart_cable":
@@ -275,12 +290,13 @@ func enrichCanonicalDefaults(id string, def domain.BlockDefinition) domain.Block
 	case "ae2:molecular_assembler":
 		def.Metadata.TransmitsChannels = true
 		def.Metadata.ChannelUsage = 0
-	case "ae2:drive", "ae2:pattern_provider":
+	case "ae2:drive", "ae2:chest", "ae2:interface", "ae2:pattern_provider":
 		def.Metadata.TransmitsChannels = true
 		if def.Metadata.ChannelUsage == 0 {
 			def.Metadata.ChannelUsage = 1
 		}
-	case "ae2:terminal", "ae2:crafting_terminal":
+	case "ae2:terminal", "ae2:crafting_terminal", "ae2:pattern_encoding_terminal", "ae2:pattern_access_terminal",
+		"ae2:import_bus", "ae2:export_bus", "ae2:storage_bus", "ae2:storage_monitor":
 		if def.Metadata.ChannelUsage == 0 {
 			def.Metadata.ChannelUsage = 1
 		}
@@ -329,7 +345,7 @@ func enrichCanonicalDefaults(id string, def domain.BlockDefinition) domain.Block
 
 func isPostMVPUnsupportedID(id string) bool {
 	switch id {
-	case "ae2:p2p_tunnel", "ae2:storage_bus", "ae2:import_bus", "ae2:export_bus", "ae2:quantum_ring":
+	case "ae2:p2p_tunnel", "ae2:quantum_ring":
 		return true
 	default:
 		return false
@@ -380,11 +396,20 @@ func (n *Node) IsMolecularAssembler() bool {
 }
 
 func (n *Node) IsExternalMachine() bool {
-	return n.Block.BlockDefID == "melab:external_machine" || n.Def.BehaviorKey == "external_machine"
+	switch n.Block.BlockDefID {
+	case "minecraft:furnace", "minecraft:blast_furnace", "minecraft:barrel",
+		"ae2:inscriber", "ae2:charger", "melab:external_machine":
+		return true
+	}
+	return n.Def.BehaviorKey == "external_machine"
+}
+
+func (n *Node) IsQuartzFiber() bool {
+	return n.Block.BlockDefID == "ae2:quartz_fiber" || n.Def.BehaviorKey == "quartz_fiber"
 }
 
 func (n *Node) IsDrive() bool {
-	return n.Block.BlockDefID == "ae2:drive" || n.Def.BehaviorKey == "drive"
+	return n.Block.BlockDefID == "ae2:drive" || n.Block.BlockDefID == "ae2:chest" || n.Def.BehaviorKey == "drive"
 }
 
 func (n *Node) IsEnergyAcceptor() bool {
@@ -408,10 +433,68 @@ func (n *Node) TransmitsChannels() bool {
 }
 
 func (n *Node) EffectiveChannelUsage() int {
-	if n.IsCPUBlock || n.IsController || n.IsCable || n.IsMolecularAssembler() {
+	if n.IsCPUBlock || n.IsController || n.IsMolecularAssembler() {
 		return 0
 	}
+	if n.IsCable {
+		ch := 0
+		for _, subID := range n.SubpartsByFace {
+			if subpartConsumesChannel(subID) {
+				ch++
+			}
+		}
+		return ch
+	}
 	return n.Def.Metadata.ChannelUsage
+}
+
+func isExternalMachineOrContainer(id, bkey string) bool {
+	switch id {
+	case "minecraft:furnace", "minecraft:blast_furnace", "minecraft:hopper", "minecraft:barrel",
+		"ae2:inscriber", "ae2:charger", "melab:external_machine":
+		return true
+	}
+	return bkey == "external_machine" || bkey == "hopper"
+}
+
+func subpartConsumesChannel(subID string) bool {
+	switch subID {
+	case "ae2:terminal", "ae2:crafting_terminal", "ae2:pattern_encoding_terminal", "ae2:pattern_access_terminal",
+		"ae2:import_bus", "ae2:export_bus", "ae2:storage_bus", "ae2:storage_monitor":
+		return true
+	default:
+		return false
+	}
+}
+
+func parseSubpartsByFace(cfg map[string]any) map[domain.Direction]string {
+	out := make(map[domain.Direction]string)
+	if cfg == nil {
+		return out
+	}
+	raw, ok := cfg["subparts"].(map[string]any)
+	if !ok {
+		return out
+	}
+	for k, v := range raw {
+		dir, valid := domain.ParseDirection(k)
+		if !valid {
+			continue
+		}
+		switch val := v.(type) {
+		case string:
+			if strings.TrimSpace(val) != "" {
+				out[dir] = strings.TrimSpace(val)
+			}
+		case map[string]any:
+			if id, ok := val["block_def_id"].(string); ok && strings.TrimSpace(id) != "" {
+				out[dir] = strings.TrimSpace(id)
+			} else if id, ok := val["type"].(string); ok && strings.TrimSpace(id) != "" {
+				out[dir] = strings.TrimSpace(id)
+			}
+		}
+	}
+	return out
 }
 
 // Generic map[string]any configuration readers resilient to both Go literals and JSON unmarshaling.

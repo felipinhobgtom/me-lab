@@ -140,6 +140,7 @@ func Initialize(snapshot Snapshot) (*EngineState, []domain.SimulationEvent, []do
 
 	// 4. Initialize network energy buffers, generation, passive consumption, and online states.
 	energyStates, energyDiags := energy.Initialize(simID, nets, alloc, snapshot.Profile)
+	energy.BridgeQuartzFibers(simID, w, nets, energyStates, &energyDiags, alloc)
 
 	// 5. Initialize ME Drives & Storage Cells (+ merge project initial inventory).
 	storeState, storeDiags := storage.Initialize(simID, nets, alloc, energyStates, snapshot.Inventory, snapshot.Profile)

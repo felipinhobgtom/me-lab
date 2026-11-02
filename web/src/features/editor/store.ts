@@ -17,8 +17,12 @@ import {
   type ValidationResult,
 } from '../../lib/api'
 import {
+  type CableColor,
   coordKey,
   defaultConfigForBlock,
+  isCableBlockId,
+  isDenseCableBlockId,
+  readCableConfig,
   rotateDirectionClockwise,
 } from '../../lib/ae2/constants'
 
@@ -75,8 +79,12 @@ export interface EditorState {
   cameraPreset: CameraPreset
 
   selectedBlockIds: string[]
+  hotbar: string[]
   activeBlockDefId: string | null
+  activeCableColor: CableColor
   placementFacing: Direction
+  inspectorOpen: boolean
+  simDrawerOpen: boolean
   clipboard: ClipboardState | null
 
   saveStatus: SaveStatus
@@ -111,11 +119,18 @@ export interface EditorState {
   toggleOverlay: (key: keyof OverlayToggles) => void
 
   // Palette & Selection actions
+  setHotbarSlot: (slotIndex: number, blockDefId: string) => void
   setActiveBlockDefId: (blockDefId: string | null) => void
+  setActiveCableColor: (color: CableColor) => void
   setPlacementFacing: (facing: Direction) => void
+  setInspectorOpen: (open: boolean) => void
+  setSimDrawerOpen: (open: boolean) => void
   selectBlock: (blockId: string | null, multi?: boolean) => void
   clearSelection: () => void
-
+  attachSubpartToCable: (cableBlockId: string, face: Direction, subpartDefId: string) => boolean
+  removeSubpartFromCable: (cableBlockId: string, face: Direction) => void
+  clearAllBlocks: () => void
+  loadPresetOperations: (operations: BatchBlockOperation[]) => void
   // Editing actions (Undo/Redo tracked)
   placeBlockAt: (coord: Coord3D, facingOverride?: Direction) => PlacedBlock | null
   removeBlocks: (blockIds?: string[]) => void
@@ -151,11 +166,23 @@ export interface EditorState {
   resetSimulation: () => Promise<void>
 }
 
+export const DEFAULT_HOTBAR: string[] = [
+  'ae2:controller',
+  'ae2:drive',
+  'ae2:energy_acceptor',
+  'ae2:smart_cable',
+  'ae2:dense_smart_cable',
+  'ae2:crafting_terminal',
+  'ae2:pattern_provider',
+  'ae2:molecular_assembler',
+  'ae2:crafting_storage_4k',
+]
+
 const initialOverlays: OverlayToggles = {
-  networks: true,
+  networks: false,
   connections: true,
-  channels: true,
-  energy: true,
+  channels: false,
+  energy: false,
   warnings: true,
 }
 
@@ -188,8 +215,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   cameraPreset: 'orbit',
 
   selectedBlockIds: [],
-  activeBlockDefId: null,
-  placementFacing: 'north',
+  hotbar: [...DEFAULT_HOTBAR],
+  activeBlockDefId: 'ae2:controller',
+  activeCableColor: 'blue',
+  placementFacing: 'south',
+  inspectorOpen: false,
+  simDrawerOpen: false,
   clipboard: null,
 
   saveStatus: 'saved',
@@ -216,8 +247,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       past: [],
       future: [],
       selectedBlockIds: [],
-      activeBlockDefId: catalog[0]?.id ?? null,
-      placementFacing: 'north',
+      activeBlockDefId: catalog[0]?.id ?? 'ae2:controller',
+      placementFacing: 'south',
       saveStatus: 'saved',
       saveError: null,
       actionError: null,
@@ -274,8 +305,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
     })),
 
+  setHotbarSlot: (slotIndex, blockDefId) =>
+    set((s) => {
+      const next = [...s.hotbar]
+      if (slotIndex >= 0 && slotIndex < next.length) {
+        next[slotIndex] = blockDefId
+      }
+      return { hotbar: next, activeBlockDefId: blockDefId }
+    }),
   setActiveBlockDefId: (activeBlockDefId) => set({ activeBlockDefId }),
+  setActiveCableColor: (activeCableColor) => set({ activeCableColor }),
   setPlacementFacing: (placementFacing) => set({ placementFacing }),
+  setInspectorOpen: (inspectorOpen) => set({ inspectorOpen }),
+  setSimDrawerOpen: (simDrawerOpen) => set({ simDrawerOpen }),
 
   selectBlock: (blockId, multi = false) => {
     if (!blockId) {
@@ -296,6 +338,125 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   clearSelection: () => set({ selectedBlockIds: [] }),
+  attachSubpartToCable: (cableBlockId, face, subpartDefId) => {
+    const state = get()
+    const target = state.blocks.find((b) => b.id === cableBlockId)
+    if (!target) return false
+    const def = state.catalog.find((d) => d.id === target.block_def_id)
+    if (!isCableBlockId(target.block_def_id, def) || isDenseCableBlockId(target.block_def_id, def)) {
+      return false
+    }
+    const { subparts } = readCableConfig(target.config)
+    const nextSubparts = { ...subparts, [face]: subpartDefId }
+    const nextPast = [...state.past, structuredClone(state.blocks)].slice(-MAX_HISTORY)
+    const now = new Date().toISOString()
+    set({
+      past: nextPast,
+      future: [],
+      blocks: state.blocks.map((b) =>
+        b.id === cableBlockId
+          ? {
+              ...b,
+              config: { ...structuredClone(b.config), subparts: nextSubparts },
+              updated_at: now,
+            }
+          : b
+      ),
+      selectedBlockIds: [cableBlockId],
+      saveStatus: 'unsaved',
+      saveError: null,
+    })
+    return true
+  },
+
+  removeSubpartFromCable: (cableBlockId, face) => {
+    const state = get()
+    const target = state.blocks.find((b) => b.id === cableBlockId)
+    if (!target) return
+    const { subparts } = readCableConfig(target.config)
+    if (!subparts[face]) return
+    const nextSubparts = { ...subparts }
+    delete nextSubparts[face]
+    const nextPast = [...state.past, structuredClone(state.blocks)].slice(-MAX_HISTORY)
+    const now = new Date().toISOString()
+    set({
+      past: nextPast,
+      future: [],
+      blocks: state.blocks.map((b) =>
+        b.id === cableBlockId
+          ? {
+              ...b,
+              config: { ...structuredClone(b.config), subparts: nextSubparts },
+              updated_at: now,
+            }
+          : b
+      ),
+      saveStatus: 'unsaved',
+      saveError: null,
+    })
+  },
+
+  clearAllBlocks: () => {
+    const state = get()
+    if (state.blocks.length === 0) return
+    const nextPast = [...state.past, structuredClone(state.blocks)].slice(-MAX_HISTORY)
+    set({
+      past: nextPast,
+      future: [],
+      blocks: [],
+      selectedBlockIds: [],
+      validationResult: null,
+      simulationRun: null,
+      events: [],
+      diagnostics: [],
+      highlightedCoords: [],
+      saveStatus: 'unsaved',
+    })
+  },
+
+  loadPresetOperations: (operations) => {
+    const state = get()
+    const now = new Date().toISOString()
+    const nextBlocks: PlacedBlock[] = []
+    for (const op of operations) {
+      const d = op.data
+      if (
+        op.operation === 'create' &&
+        d &&
+        d.block_def_id !== undefined &&
+        d.x !== undefined &&
+        d.y !== undefined &&
+        d.z !== undefined
+      ) {
+        nextBlocks.push({
+          id: nextLocalBlockId(),
+          project_id: state.projectId ?? '',
+          block_def_id: d.block_def_id,
+          x: d.x,
+          y: d.y,
+          z: d.z,
+          facing: d.facing ?? 'south',
+          config: structuredClone(d.config ?? {}),
+          label: d.label,
+          created_at: now,
+          updated_at: now,
+        })
+      }
+    }
+    const nextPast = [...state.past, structuredClone(state.blocks)].slice(-MAX_HISTORY)
+    set({
+      past: nextPast,
+      future: [],
+      blocks: nextBlocks,
+      selectedBlockIds: [],
+      validationResult: null,
+      simulationRun: null,
+      events: [],
+      diagnostics: [],
+      highlightedCoords: [],
+      saveStatus: 'unsaved',
+    })
+  },
 
   placeBlockAt: (coord, facingOverride) => {
     const state = get()
@@ -320,7 +481,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       y: coord.y,
       z: coord.z,
       facing: facingOverride ?? state.placementFacing,
-      config: defaultConfigForBlock(def, defId),
+      config: defaultConfigForBlock(def, defId, state.activeCableColor),
       created_at: now,
       updated_at: now,
     }

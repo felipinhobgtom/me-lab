@@ -67,6 +67,22 @@ func (s *Store) DB() *sql.DB {
 // Users
 // ---------------------------------------------------------------------------
 
+// SandboxUserID is the built-in SQLite user ID used for anonymous zero-login sandbox sessions.
+const SandboxUserID = "00000000-0000-0000-0000-000000000001"
+
+// EnsureSandboxUser creates the built-in guest sandbox user row if it does not yet exist.
+func (s *Store) EnsureSandboxUser(ctx context.Context) (string, error) {
+	now := time.Now().UTC()
+	const q = `
+		INSERT INTO users (id, email, password_hash, created_at, updated_at)
+		VALUES (?, 'sandbox@melab.local', 'sandbox-nologin', ?, ?)
+		ON CONFLICT(id) DO NOTHING`
+	if _, err := s.db.ExecContext(ctx, q, SandboxUserID, now, now); err != nil {
+		return "", err
+	}
+	return SandboxUserID, nil
+}
+
 // CreateUser inserts a new user account, returning ErrConflict if the email or ID already exists.
 func (s *Store) CreateUser(ctx context.Context, u domain.User) (domain.User, error) {
 	if u.ID == "" {

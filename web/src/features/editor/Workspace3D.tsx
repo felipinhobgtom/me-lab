@@ -1,637 +1,571 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Canvas, type ThreeEvent, useFrame, useThree } from '@react-three/fiber'
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
-import {
-  computeConnectedDirections,
-  coordKey,
-  directionOffset,
-  isCableBlock,
-  networkColorForId,
-  readCableConfig,
-  resolveBlockColor,
-} from '../../lib/ae2/constants'
 import type {
   BlockDefinition,
   CableChannelOverlay,
   Coord3D,
-  DeviceRouteOverlay,
   Direction,
   PlacedBlock,
-} from '../../lib/api'
-import { type CameraPreset, selectActiveOverlay, useEditorStore } from './store'
+} from '@/lib/api'
+import {
+  computeConnectedDirections,
+  coordKey,
+  defaultConfigForBlock,
+  isCableBlockId,
+  isDenseCableBlockId,
+  isSubpartBlockId,
+  oppositeDirection,
+  readCableConfig,
+} from '@/lib/ae2/constants'
+import { selectActiveOverlay, useEditorStore, type CameraPreset } from './store'
+import { VoxelBlockModel } from './VoxelModels'
 import { Workspace2D } from './Workspace2D'
 
-function detectWebGLSupport(): boolean {
+function detectWebGLAvailable(): boolean {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return false
   }
-  if (typeof window.WebGLRenderingContext === 'undefined') {
+  if (
+    typeof window.WebGLRenderingContext === 'undefined' &&
+    typeof window.WebGL2RenderingContext === 'undefined'
+  ) {
     return false
   }
   try {
     const canvas = document.createElement('canvas')
-    const ctx =
-      canvas.getContext('webgl2') ||
-      canvas.getContext('webgl') ||
-      canvas.getContext('experimental-webgl')
-    return Boolean(ctx)
+    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl')
+    return Boolean(gl)
   } catch {
     return false
   }
 }
 
-function facingConeTransform(facing: Direction): {
-  position: [number, number, number]
-  rotation: [number, number, number]
-} {
-  switch (facing) {
-    case 'north':
-      return { position: [0, 0, -0.52], rotation: [-Math.PI / 2, 0, 0] }
-    case 'south':
-      return { position: [0, 0, 0.52], rotation: [Math.PI / 2, 0, 0] }
-    case 'east':
-      return { position: [0.52, 0, 0], rotation: [0, 0, -Math.PI / 2] }
-    case 'west':
-      return { position: [-0.52, 0, 0], rotation: [0, 0, Math.PI / 2] }
-    case 'up':
-      return { position: [0, 0.52, 0], rotation: [0, 0, 0] }
-    case 'down':
-      return { position: [0, -0.52, 0], rotation: [Math.PI, 0, 0] }
+function normalToDirection(normal: THREE.Vector3): Direction {
+  const ax = Math.abs(normal.x)
+  const ay = Math.abs(normal.y)
+  const az = Math.abs(normal.z)
+  if (ay >= ax && ay >= az) {
+    return normal.y >= 0 ? 'up' : 'down'
   }
+  if (ax >= az) {
+    return normal.x >= 0 ? 'east' : 'west'
+  }
+  return normal.z >= 0 ? 'south' : 'north'
 }
 
-function panelRotation(facing: Direction): [number, number, number] {
-  switch (facing) {
-    case 'north':
-      return [0, Math.PI, 0]
-    case 'south':
-      return [0, 0, 0]
-    case 'east':
-      return [0, Math.PI / 2, 0]
-    case 'west':
-      return [0, -Math.PI / 2, 0]
-    case 'up':
-      return [-Math.PI / 2, 0, 0]
-    case 'down':
-      return [Math.PI / 2, 0, 0]
+function smartAutoFacing(
+  blockDefId: string,
+  clickedFace: Direction,
+  fallbackFacing: Direction
+): Direction {
+  // Hoppers and Buses point INTO the block face you clicked against!
+  if (blockDefId === 'minecraft:hopper') {
+    const into = oppositeDirection(clickedFace)
+    return into === 'up' ? 'down' : into
   }
+  if (
+    blockDefId === 'ae2:import_bus' ||
+    blockDefId === 'ae2:export_bus' ||
+    blockDefId === 'ae2:storage_bus'
+  ) {
+    return oppositeDirection(clickedFace)
+  }
+  // Terminals face OUTWARD along the clicked face normal
+  if (
+    blockDefId === 'ae2:terminal' ||
+    blockDefId === 'ae2:crafting_terminal' ||
+    blockDefId === 'ae2:pattern_encoding_terminal' ||
+    blockDefId === 'ae2:pattern_access_terminal'
+  ) {
+    return clickedFace
+  }
+  // Horizontal blocks (Drive, Furnace, Monitor) adopt horizontal clicked face or current placementFacing
+  if (clickedFace !== 'up' && clickedFace !== 'down') {
+    if (
+      blockDefId === 'ae2:drive' ||
+      blockDefId === 'ae2:chest' ||
+      blockDefId === 'minecraft:furnace' ||
+      blockDefId === 'minecraft:blast_furnace' ||
+      blockDefId === 'ae2:crafting_monitor'
+    ) {
+      return clickedFace
+    }
+  }
+  return fallbackFacing
 }
 
-function CameraPresetController({ preset }: { preset: CameraPreset }) {
+function CameraRig({ preset }: { preset: CameraPreset }) {
   const { camera } = useThree()
-
   useEffect(() => {
     switch (preset) {
       case 'top':
-        camera.position.set(0, 14, 0.01)
+        camera.position.set(0.5, 16, 0.51)
         break
       case 'front':
-        camera.position.set(0, 3, 13)
+        camera.position.set(0.5, 4, 14)
         break
       case 'side':
-        camera.position.set(13, 3, 0)
+        camera.position.set(14, 4, 0.5)
         break
       case 'orbit':
       default:
-        camera.position.set(8, 8, 9)
+        camera.position.set(-7.5, 6.5, 9.5)
         break
     }
-    camera.lookAt(1, 0, 0)
+    camera.lookAt(0.5, 0.5, 0)
   }, [camera, preset])
-
-  return <OrbitControls makeDefault enableDamping dampingFactor={0.08} target={[1, 0, 0]} />
+  return null
 }
 
-function DiagnosticPulseWireframe() {
-  const meshRef = useRef<THREE.Mesh>(null)
-  const matRef = useRef<THREE.MeshBasicMaterial>(null)
-
+function DiagnosticPulseBox({ active }: { active: boolean }) {
+  const matRef = useRef<THREE.MeshBasicMaterial | null>(null)
   useFrame(({ clock }) => {
-    const t = clock.getElapsedTime()
-    const scale = 1.09 + Math.sin(t * 5.0) * 0.045
-    if (meshRef.current) {
-      meshRef.current.scale.set(scale, scale, scale)
-    }
-    if (matRef.current) {
-      matRef.current.opacity = 0.72 + Math.sin(t * 5.0) * 0.25
+    if (matRef.current && active) {
+      matRef.current.opacity = 0.65 + 0.35 * Math.sin(clock.getElapsedTime() * 6)
     }
   })
-
+  if (!active) return null
   return (
-    <mesh ref={meshRef}>
-      <boxGeometry args={[1, 1, 1]} />
+    <mesh>
+      <boxGeometry args={[1.06, 1.06, 1.06]} />
       <meshBasicMaterial ref={matRef} color="#ef4444" wireframe transparent opacity={0.9} />
     </mesh>
   )
 }
 
-interface ProceduralBlockMeshProps {
-  block: PlacedBlock
-  def?: BlockDefinition
-  connectedDirs: Direction[]
-  cableOverlay?: CableChannelOverlay
-  routeOverlay?: DeviceRouteOverlay
-  isSelected: boolean
-  isHighlighted: boolean
-  showNetworks: boolean
-  showConnections: boolean
-  showChannels: boolean
-  showEnergy: boolean
-  showWarnings: boolean
-  hasWarning: boolean
-  onBlockPointerDown: (e: ThreeEvent<MouseEvent>, block: PlacedBlock) => void
-  onBlockPointerMove: (e: ThreeEvent<PointerEvent>, block: PlacedBlock) => void
-  onBlockPointerOut: () => void
+interface HoverTarget {
+  placeCoord: Coord3D
+  clickedBlockId?: string
+  clickedFace: Direction
+  attachAsSubpart: boolean
 }
 
-function ProceduralBlockMesh({
-  block,
-  def,
-  connectedDirs,
-  cableOverlay,
-  routeOverlay,
-  isSelected,
-  isHighlighted,
-  showNetworks,
-  showConnections,
-  showChannels,
-  showEnergy,
-  showWarnings,
-  hasWarning,
-  onBlockPointerDown,
-  onBlockPointerMove,
-  onBlockPointerOut,
-}: ProceduralBlockMeshProps) {
-  const shape = def?.metadata.visual.shape ?? (isCableBlock(block, def) ? 'cable' : 'cube')
-  const baseColor = resolveBlockColor(block, def)
-  const accentColor = def?.metadata.visual.accent_color ?? '#38bdf8'
-  const isSmart = Boolean(def?.metadata.is_smart_cable)
-  const isDense = Boolean(def?.metadata.is_dense_cable || shape === 'dense_cable')
-  const cableCfg = isCableBlock(block, def) ? readCableConfig(block.config) : null
-
-  const channelRatio =
-    cableOverlay && cableOverlay.capacity > 0
-      ? Math.min(1, cableOverlay.channels_used / cableOverlay.capacity)
-      : 0
-  const smartBarColor = cableOverlay?.overloaded
-    ? '#ef4444'
-    : channelRatio > 0.75
-      ? '#f59e0b'
-      : channelRatio > 0
-        ? '#38bdf8'
-        : '#475569'
-
-  const networkId = cableOverlay?.network_id ?? routeOverlay?.network_id
-  const cone = facingConeTransform(block.facing)
-
-  return (
-    <group
-      position={[block.x, block.y, block.z]}
-      onClick={(e) => onBlockPointerDown(e, block)}
-      onPointerMove={(e) => onBlockPointerMove(e, block)}
-      onPointerOut={onBlockPointerOut}
-    >
-      {/* Cable & Dense Cable procedural cores + dynamic directional arms */}
-      {(shape === 'cable' || shape === 'dense_cable') && (
-        <group>
-          <mesh>
-            <boxGeometry
-              args={isDense ? [0.48, 0.48, 0.48] : [0.28, 0.28, 0.28]}
-            />
-            <meshStandardMaterial color={baseColor} roughness={0.35} metalness={0.25} />
-          </mesh>
-
-          {isSmart && (
-            <mesh>
-              <boxGeometry
-                args={isDense ? [0.51, 0.14, 0.51] : [0.31, 0.09, 0.31]}
-              />
-              <meshStandardMaterial
-                color={smartBarColor}
-                emissive={smartBarColor}
-                emissiveIntensity={channelRatio > 0 || cableOverlay?.overloaded ? 0.75 : 0.15}
-              />
-            </mesh>
-          )}
-
-          {showConnections &&
-            connectedDirs.map((dir) => {
-              const off = directionOffset(dir)
-              const thickness = isDense ? 0.4 : 0.22
-              const length = 0.5
-              const size: [number, number, number] =
-                off.x !== 0
-                  ? [length, thickness, thickness]
-                  : off.y !== 0
-                    ? [thickness, length, thickness]
-                    : [thickness, thickness, length]
-              return (
-                <mesh
-                  key={`arm-${dir}`}
-                  position={[off.x * 0.25, off.y * 0.25, off.z * 0.25]}
-                >
-                  <boxGeometry args={size} />
-                  <meshStandardMaterial color={baseColor} roughness={0.4} metalness={0.2} />
-                </mesh>
-              )
-            })}
-
-          {cableCfg?.anchored_faces.map((face) => {
-            const off = directionOffset(face)
-            const plateSize: [number, number, number] =
-              off.x !== 0 ? [0.06, 0.36, 0.36] : off.y !== 0 ? [0.36, 0.06, 0.36] : [0.36, 0.36, 0.06]
-            return (
-              <mesh
-                key={`anchor-${face}`}
-                position={[off.x * 0.45, off.y * 0.45, off.z * 0.45]}
-              >
-                <boxGeometry args={plateSize} />
-                <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.3} />
-              </mesh>
-            )
-          })}
-        </group>
-      )}
-
-      {/* ME Controller glowing core */}
-      {shape === 'core' && (
-        <group>
-          <mesh>
-            <boxGeometry args={[0.94, 0.94, 0.94]} />
-            <meshStandardMaterial color="#1e293b" metalness={0.55} roughness={0.35} />
-          </mesh>
-          <mesh>
-            <octahedronGeometry args={[0.42, 0]} />
-            <meshStandardMaterial
-              color={accentColor}
-              emissive={baseColor}
-              emissiveIntensity={0.9}
-            />
-          </mesh>
-        </group>
-      )}
-
-      {/* Molecular Assembler / Crafting Frame */}
-      {shape === 'frame' && (
-        <group>
-          <mesh>
-            <boxGeometry args={[0.92, 0.92, 0.92]} />
-            <meshStandardMaterial
-              color={baseColor}
-              transparent
-              opacity={0.42}
-              roughness={0.2}
-              metalness={0.1}
-            />
-          </mesh>
-          <mesh>
-            <boxGeometry args={[0.94, 0.94, 0.94]} />
-            <meshBasicMaterial color={accentColor} wireframe />
-          </mesh>
-          <mesh>
-            <boxGeometry args={[0.44, 0.44, 0.44]} />
-            <meshStandardMaterial color={accentColor} emissive={accentColor} emissiveIntensity={0.35} />
-          </mesh>
-        </group>
-      )}
-
-      {/* Directional Terminal / Monitor Panel */}
-      {shape === 'panel' && (
-        <group rotation={panelRotation(block.facing)}>
-          <mesh position={[0, 0, -0.34]}>
-            <boxGeometry args={[0.76, 0.76, 0.22]} />
-            <meshStandardMaterial color={baseColor} roughness={0.35} metalness={0.4} />
-          </mesh>
-          <mesh position={[0, 0, -0.21]}>
-            <boxGeometry args={[0.62, 0.52, 0.04]} />
-            <meshStandardMaterial
-              color={accentColor}
-              emissive={accentColor}
-              emissiveIntensity={0.65}
-            />
-          </mesh>
-        </group>
-      )}
-
-      {/* Standard Solid AE2 Device Cube */}
-      {shape !== 'cable' &&
-        shape !== 'dense_cable' &&
-        shape !== 'core' &&
-        shape !== 'frame' &&
-        shape !== 'panel' && (
-          <group>
-            <mesh>
-              <boxGeometry args={[0.92, 0.92, 0.92]} />
-              <meshStandardMaterial color={baseColor} roughness={0.42} metalness={0.3} />
-            </mesh>
-            <mesh>
-              <boxGeometry args={[0.94, 0.2, 0.94]} />
-              <meshStandardMaterial color={accentColor} roughness={0.3} metalness={0.4} />
-            </mesh>
-          </group>
-        )}
-
-      {/* Directional facing indicator cone for rotatable / push-face devices */}
-      {(def?.metadata.rotatable || block.block_def_id === 'ae2:pattern_provider') && (
-        <mesh position={cone.position} rotation={cone.rotation}>
-          <coneGeometry args={[0.11, 0.2, 12]} />
-          <meshStandardMaterial color="#38bdf8" emissive="#38bdf8" emissiveIntensity={0.45} />
-        </mesh>
-      )}
-
-      {/* Network Ring */}
-      {showNetworks && networkId && (
-        <mesh position={[0, -0.47, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <ringGeometry args={[0.42, 0.49, 24]} />
-          <meshBasicMaterial color={networkColorForId(networkId)} side={THREE.DoubleSide} />
-        </mesh>
-      )}
-
-      {/* Selection Wireframe */}
-      {isSelected && (
-        <mesh>
-          <boxGeometry args={[1.03, 1.03, 1.03]} />
-          <meshBasicMaterial color="#38bdf8" wireframe />
-        </mesh>
-      )}
-
-      {/* Crimson Diagnostic Highlight Pulse */}
-      {isHighlighted && <DiagnosticPulseWireframe />}
-
-      {/* Floating CAD Telemetry Overlay Tag */}
-      {(isSelected ||
-        isHighlighted ||
-        (showChannels && (cableOverlay || routeOverlay)) ||
-        (showWarnings && hasWarning) ||
-        (showEnergy && (def?.metadata.energy_generation ?? 0) > 0)) && (
-        <Html position={[0, 0.68, 0]} center distanceFactor={12} style={{ pointerEvents: 'none' }}>
-          <div
-            style={{
-              display: 'flex',
-              gap: '4px',
-              alignItems: 'center',
-              padding: '1px 5px',
-              borderRadius: '3px',
-              background: isHighlighted ? 'rgba(127,29,29,0.92)' : 'rgba(11,17,32,0.88)',
-              border: `1px solid ${isHighlighted ? '#ef4444' : '#334155'}`,
-              color: '#f1f5f9',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '10px',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {showWarnings && hasWarning && <span style={{ color: '#f87171', fontWeight: 700 }}>!</span>}
-            {showChannels && cableOverlay && (
-              <span style={{ color: cableOverlay.overloaded ? '#fca5a5' : '#38bdf8' }}>
-                {cableOverlay.channels_used}/{cableOverlay.capacity}ch
-              </span>
-            )}
-            {showChannels && !cableOverlay && routeOverlay && (
-              <span style={{ color: routeOverlay.has_channel ? '#6ee7b7' : '#fca5a5' }}>
-                {routeOverlay.has_channel ? 'CH OK' : 'NO CH'}
-              </span>
-            )}
-            {showEnergy && def && def.metadata.energy_cost > 0 && isSelected && (
-              <span style={{ color: '#fcd34d' }}>-{def.metadata.energy_cost} AE/t</span>
-            )}
-          </div>
-        </Html>
-      )}
-    </group>
-  )
-}
-
-export function Workspace3D() {
-  const [webglSupported] = useState<boolean>(() => detectWebGLSupport())
-  const [ghostCoord, setGhostCoord] = useState<Coord3D | null>(null)
-
+function VoxelSandboxScene() {
   const blocks = useEditorStore((s) => s.blocks)
   const catalog = useEditorStore((s) => s.catalog)
-  const activeMode = useEditorStore((s) => s.activeMode)
-  const activeLayerY = useEditorStore((s) => s.activeLayerY)
-  const cameraPreset = useEditorStore((s) => s.cameraPreset)
-  const activeBlockDefId = useEditorStore((s) => s.activeBlockDefId)
   const selectedBlockIds = useEditorStore((s) => s.selectedBlockIds)
-  const highlightedCoords = useEditorStore((s) => s.highlightedCoords)
-  const diagnostics = useEditorStore((s) => s.diagnostics)
+  const activeBlockDefId = useEditorStore((s) => s.activeBlockDefId)
+  const activeCableColor = useEditorStore((s) => s.activeCableColor)
+  const placementFacing = useEditorStore((s) => s.placementFacing)
+  const cameraPreset = useEditorStore((s) => s.cameraPreset)
   const overlays = useEditorStore((s) => s.overlays)
-  const simulationRun = useEditorStore((s) => s.simulationRun)
+  const highlightedCoords = useEditorStore((s) => s.highlightedCoords)
   const validationResult = useEditorStore((s) => s.validationResult)
+  const simulationRun = useEditorStore((s) => s.simulationRun)
 
-  const placeBlockAt = useEditorStore((s) => s.placeBlockAt)
   const selectBlock = useEditorStore((s) => s.selectBlock)
-  const clearSelection = useEditorStore((s) => s.clearSelection)
+  const setActiveBlockDefId = useEditorStore((s) => s.setActiveBlockDefId)
+  const setActiveCableColor = useEditorStore((s) => s.setActiveCableColor)
+  const setInspectorOpen = useEditorStore((s) => s.setInspectorOpen)
+  const placeBlockAt = useEditorStore((s) => s.placeBlockAt)
+  const attachSubpartToCable = useEditorStore((s) => s.attachSubpartToCable)
+  const removeSubpartFromCable = useEditorStore((s) => s.removeSubpartFromCable)
+  const removeBlocks = useEditorStore((s) => s.removeBlocks)
+
+  const [hoverTarget, setHoverTarget] = useState<HoverTarget | null>(null)
+  const pointerDownRef = useRef<{ x: number; y: number } | null>(null)
+
+  const recordPointerDown = (e: ThreeEvent<PointerEvent>) => {
+    pointerDownRef.current = { x: e.nativeEvent.clientX, y: e.nativeEvent.clientY }
+  }
+
+  const wasDragged = (e: ThreeEvent<MouseEvent>): boolean => {
+    if (!pointerDownRef.current) return false
+    const dx = e.nativeEvent.clientX - pointerDownRef.current.x
+    const dy = e.nativeEvent.clientY - pointerDownRef.current.y
+    return dx * dx + dy * dy > 36 // > 6px movement = camera orbit/pan
+  }
+
+  const activeOverlay = selectActiveOverlay({ simulationRun, validationResult })
 
   const catalogMap = useMemo(() => {
     const m = new Map<string, BlockDefinition>()
-    for (const d of catalog) {
-      m.set(d.id, d)
-    }
+    for (const d of catalog) m.set(d.id, d)
     return m
   }, [catalog])
 
   const blocksByCoord = useMemo(() => {
     const m = new Map<string, PlacedBlock>()
-    for (const b of blocks) {
-      m.set(coordKey(b.x, b.y, b.z), b)
-    }
+    for (const b of blocks) m.set(coordKey(b.x, b.y, b.z), b)
     return m
   }, [blocks])
 
-  const activeOverlay = useMemo(
-    () => selectActiveOverlay({ simulationRun, validationResult }),
-    [simulationRun, validationResult]
-  )
-
-  const cableOverlayByCoord = useMemo(() => {
+  const cableOverlayById = useMemo(() => {
     const m = new Map<string, CableChannelOverlay>()
-    for (const c of activeOverlay?.cables ?? []) {
-      m.set(coordKey(c.coord.x, c.coord.y, c.coord.z), c)
+    if (activeOverlay) {
+      for (const c of activeOverlay.cables) m.set(c.block_id, c)
     }
     return m
   }, [activeOverlay])
 
-  const routeOverlayByCoord = useMemo(() => {
-    const m = new Map<string, DeviceRouteOverlay>()
-    for (const r of activeOverlay?.device_routes ?? []) {
-      m.set(coordKey(r.coord.x, r.coord.y, r.coord.z), r)
-    }
-    return m
-  }, [activeOverlay])
-
-  const highlightedSet = useMemo(
-    () => new Set(highlightedCoords.map((c) => coordKey(c.x, c.y, c.z))),
-    [highlightedCoords]
-  )
-
-  const warningSet = useMemo(() => {
-    const s = new Set<string>()
-    for (const d of diagnostics) {
-      for (const ab of d.affected_blocks ?? []) {
-        s.add(coordKey(ab.x, ab.y, ab.z))
+  const deviceRouteById = useMemo(() => {
+    const m = new Map<string, { has_channel: boolean; network_id: string }>()
+    if (activeOverlay) {
+      for (const r of activeOverlay.device_routes) {
+        m.set(r.block_id, { has_channel: r.has_channel, network_id: r.network_id })
       }
     }
-    return s
-  }, [diagnostics])
+    return m
+  }, [activeOverlay])
 
-  if (!webglSupported) {
-    return <Workspace2D fallbackNotice="WebGL unavailable — 2D slice active" />
+  const invalidControllerNetIds = useMemo(() => {
+    const out: Record<string, true> = {}
+    if (activeOverlay) {
+      for (const n of activeOverlay.networks) {
+        if (n.has_controller && !n.controller_valid) {
+          out[n.id] = true
+        }
+      }
+    }
+    return out
+  }, [activeOverlay])
+
+  const isRunningJobs = Boolean(
+    activeOverlay?.crafting_jobs.some((j) => j.status === 'running')
+  )
+
+  const highlightedSet = useMemo(() => {
+    const s = new Set<string>()
+    for (const c of highlightedCoords) s.add(coordKey(c.x, c.y, c.z))
+    return s
+  }, [highlightedCoords])
+
+  const computeBlockFaceTarget = (
+    block: PlacedBlock,
+    e: ThreeEvent<PointerEvent | MouseEvent>
+  ): HoverTarget => {
+    const normal = e.face?.normal ? e.face.normal.clone() : new THREE.Vector3(0, 1, 0)
+    // Transform local mesh normal to world space
+    normal.transformDirection(e.object.matrixWorld)
+    const face = normalToDirection(normal)
+    const nx = block.x + Math.round(normal.x)
+    const ny = block.y + Math.round(normal.y)
+    const nz = block.z + Math.round(normal.z)
+
+    const def = catalogMap.get(block.block_def_id)
+    const isNonDenseCable =
+      isCableBlockId(block.block_def_id, def) && !isDenseCableBlockId(block.block_def_id, def)
+    const attachAsSubpart = Boolean(
+      activeBlockDefId &&
+        activeBlockDefId !== '__break__' &&
+        isSubpartBlockId(activeBlockDefId) &&
+        isNonDenseCable &&
+        !e.nativeEvent.altKey
+    )
+
+    return {
+      placeCoord: { x: nx, y: ny, z: nz },
+      clickedBlockId: block.id,
+      clickedFace: face,
+      attachAsSubpart,
+    }
   }
 
   const handleGroundMove = (e: ThreeEvent<PointerEvent>) => {
-    if (activeMode !== 'build' || !activeBlockDefId) {
-      setGhostCoord(null)
-      return
-    }
+    e.stopPropagation()
     const gx = Math.round(e.point.x)
     const gz = Math.round(e.point.z)
-    if (!blocksByCoord.has(coordKey(gx, activeLayerY, gz))) {
-      setGhostCoord({ x: gx, y: activeLayerY, z: gz })
-    } else {
-      setGhostCoord(null)
+    if (Math.abs(gx) > 32 || Math.abs(gz) > 32) {
+      setHoverTarget(null)
+      return
     }
+    setHoverTarget({
+      placeCoord: { x: gx, y: 0, z: gz },
+      clickedFace: 'up',
+      attachAsSubpart: false,
+    })
   }
 
   const handleGroundClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
-    const gx = Math.round(e.point.x)
-    const gz = Math.round(e.point.z)
-    if (activeMode === 'build' && activeBlockDefId) {
-      placeBlockAt({ x: gx, y: activeLayerY, z: gz })
-    } else if (!e.nativeEvent.shiftKey) {
-      clearSelection()
-    }
-  }
-
-  const handleBlockPointerMove = (e: ThreeEvent<PointerEvent>, block: PlacedBlock) => {
-    e.stopPropagation()
-    if (activeMode === 'build' && activeBlockDefId && e.face) {
-      const nx = block.x + Math.round(e.face.normal.x)
-      const ny = block.y + Math.round(e.face.normal.y)
-      const nz = block.z + Math.round(e.face.normal.z)
-      if (!blocksByCoord.has(coordKey(nx, ny, nz))) {
-        setGhostCoord({ x: nx, y: ny, z: nz })
-        return
-      }
-    }
-    setGhostCoord(null)
-  }
-
-  const handleBlockClick = (e: ThreeEvent<MouseEvent>, block: PlacedBlock) => {
-    e.stopPropagation()
-    if (activeMode === 'build' && activeBlockDefId && e.face && e.nativeEvent.altKey) {
-      const nx = block.x + Math.round(e.face.normal.x)
-      const ny = block.y + Math.round(e.face.normal.y)
-      const nz = block.z + Math.round(e.face.normal.z)
-      placeBlockAt({ x: nx, y: ny, z: nz })
+    if (wasDragged(e)) return
+    if (!activeBlockDefId || activeBlockDefId === '__break__' || e.nativeEvent.shiftKey) {
+      selectBlock(null)
       return
     }
-    selectBlock(block.id, e.nativeEvent.shiftKey)
+    const gx = Math.round(e.point.x)
+    const gz = Math.round(e.point.z)
+    if (!blocksByCoord.has(coordKey(gx, 0, gz))) {
+      placeBlockAt({ x: gx, y: 0, z: gz }, placementFacing)
+    }
+  }
+
+  const handleBlockMove = (block: PlacedBlock, e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation()
+    setHoverTarget(computeBlockFaceTarget(block, e))
+  }
+
+  const handleBlockClick = (block: PlacedBlock, e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation()
+    if (wasDragged(e)) return
+
+    const target = computeBlockFaceTarget(block, e)
+
+    // Shift+Click or Break tool -> break subpart on clicked face first, or break block
+    if (e.nativeEvent.shiftKey || activeBlockDefId === '__break__') {
+      if (isCableBlockId(block.block_def_id)) {
+        const { subparts } = readCableConfig(block.config)
+        if (subparts[target.clickedFace]) {
+          removeSubpartFromCable(block.id, target.clickedFace)
+          return
+        }
+      }
+      removeBlocks([block.id])
+      return
+    }
+
+    // Hand / Inspect cursor (activeBlockDefId === null) -> select & open config GUI
+    if (!activeBlockDefId) {
+      selectBlock(block.id, false)
+      setInspectorOpen(true)
+      return
+    }
+
+    // Attach Terminal / Bus / Quartz Fiber / Anchor directly onto a non-dense Cable face!
+    if (target.attachAsSubpart) {
+      attachSubpartToCable(block.id, target.clickedFace, activeBlockDefId)
+      return
+    }
+
+    // Place held block on the adjacent voxel face!
+    const destKey = coordKey(target.placeCoord.x, target.placeCoord.y, target.placeCoord.z)
+    if (!blocksByCoord.has(destKey)) {
+      const autoFacing = smartAutoFacing(activeBlockDefId, target.clickedFace, placementFacing)
+      placeBlockAt(target.placeCoord, autoFacing)
+    } else {
+      selectBlock(block.id, false)
+    }
+  }
+
+  const handleBlockDoubleClick = (block: PlacedBlock, e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation()
+    selectBlock(block.id, false)
+    setInspectorOpen(true)
+  }
+
+  const handleBlockAuxClick = (block: PlacedBlock, e: ThreeEvent<MouseEvent>) => {
+    // Middle-click = Minecraft Pick Block!
+    if (e.nativeEvent.button === 1) {
+      e.stopPropagation()
+      setActiveBlockDefId(block.block_def_id)
+      if (isCableBlockId(block.block_def_id)) {
+        setActiveCableColor(readCableConfig(block.config).color)
+      }
+    }
+  }
+
+  // Ghost block preview
+  const ghostBlock = useMemo((): PlacedBlock | null => {
+    if (
+      !hoverTarget ||
+      !activeBlockDefId ||
+      activeBlockDefId === '__break__' ||
+      hoverTarget.attachAsSubpart
+    ) {
+      return null
+    }
+    const { x, y, z } = hoverTarget.placeCoord
+    if (blocksByCoord.has(coordKey(x, y, z))) {
+      return null
+    }
+    const def = catalogMap.get(activeBlockDefId)
+    return {
+      id: '__ghost__',
+      project_id: '',
+      block_def_id: activeBlockDefId,
+      x,
+      y,
+      z,
+      facing: smartAutoFacing(activeBlockDefId, hoverTarget.clickedFace, placementFacing),
+      config: defaultConfigForBlock(def, activeBlockDefId, activeCableColor),
+      created_at: '',
+      updated_at: '',
+    }
+  }, [
+    activeBlockDefId,
+    activeCableColor,
+    blocksByCoord,
+    catalogMap,
+    hoverTarget,
+    placementFacing,
+  ])
+
+  const ghostConnectedDirs = useMemo(() => {
+    if (!ghostBlock) return []
+    return computeConnectedDirections(ghostBlock, blocksByCoord, catalogMap)
+  }, [blocksByCoord, catalogMap, ghostBlock])
+
+  return (
+    <>
+      <color attach="background" args={['#171717']} />
+      <ambientLight intensity={1.25} />
+      <directionalLight position={[10, 18, 12]} intensity={1.15} />
+      <directionalLight position={[-10, 8, -10]} intensity={0.45} />
+
+      <CameraRig preset={cameraPreset} />
+      <OrbitControls makeDefault enableDamping dampingFactor={0.1} target={[0.5, 0.5, 0]} />
+
+      {/* Subtle AE2 Guide neutral dark voxel grid aligned to 1x1 block edges */}
+      <gridHelper args={[32, 32, '#2e2e2e', '#242424']} position={[0.5, -0.5, 0.5]} />
+
+      {/* Invisible Y=0 raycast build plane */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0.5, -0.501, 0.5]}
+        onPointerDown={recordPointerDown}
+        onPointerMove={handleGroundMove}
+        onPointerOut={() => setHoverTarget(null)}
+        onClick={handleGroundClick}
+      >
+        <planeGeometry args={[64, 64]} />
+        <meshBasicMaterial visible={false} />
+      </mesh>
+
+      {/* Placed AE2 & Minecraft Blocks */}
+      {blocks.map((block) => {
+        const def = catalogMap.get(block.block_def_id)
+        const cOverlay = cableOverlayById.get(block.id)
+        const dRoute = deviceRouteById.get(block.id)
+        const connectedDirs = computeConnectedDirections(
+          block,
+          blocksByCoord,
+          catalogMap,
+          overlays.connections ? cOverlay : undefined
+        )
+        const isSelected = selectedBlockIds.includes(block.id)
+        const isDiagHighlighted =
+          overlays.warnings && highlightedSet.has(coordKey(block.x, block.y, block.z))
+
+        const online =
+          cOverlay !== undefined
+            ? cOverlay.online
+            : dRoute !== undefined
+              ? dRoute.has_channel
+              : true
+        const invalidCtrl = Boolean(
+          cOverlay?.network_id && invalidControllerNetIds[cOverlay.network_id]
+        )
+
+        return (
+          <group
+            key={block.id}
+            position={[block.x, block.y, block.z]}
+            onPointerDown={recordPointerDown}
+            onPointerMove={(e) => handleBlockMove(block, e)}
+            onClick={(e) => handleBlockClick(block, e)}
+            onDoubleClick={(e) => handleBlockDoubleClick(block, e)}
+            onPointerUp={(e) => {
+              if (e.nativeEvent.button === 1) {
+                handleBlockAuxClick(block, e as unknown as ThreeEvent<MouseEvent>)
+              }
+            }}
+          >
+            <VoxelBlockModel
+              block={block}
+              def={def}
+              blocksByCoord={blocksByCoord}
+              connectedDirs={connectedDirs}
+              cableOverlay={cOverlay}
+              online={online}
+              invalidController={invalidCtrl}
+              isCraftingActive={isRunningJobs}
+            />
+
+            {/* Subtle Minecraft black/white selection box */}
+            {isSelected && (
+              <mesh>
+                <boxGeometry args={[1.015, 1.015, 1.015]} />
+                <meshBasicMaterial color="#e5e5e5" wireframe transparent opacity={0.45} />
+              </mesh>
+            )}
+
+            {/* Crimson diagnostic fault wireframe when inspecting errors */}
+            <DiagnosticPulseBox active={isDiagHighlighted} />
+
+            {/* Optional Opt-In Channel Overlay Tag (off by default to keep scene clean!) */}
+            {overlays.channels && (cOverlay || dRoute) && (
+              <Html position={[0, 0.68, 0]} center distanceFactor={11}>
+                <div
+                  style={{
+                    background:
+                      cOverlay?.overloaded || (dRoute && !dRoute.has_channel)
+                        ? 'rgba(153, 27, 27, 0.92)'
+                        : 'rgba(23, 23, 23, 0.88)',
+                    border: '1px solid rgba(255,255,255,0.16)',
+                    color: '#f5f5f5',
+                    padding: '1px 5px',
+                    borderRadius: '3px',
+                    fontSize: '10px',
+                    fontFamily: 'ui-monospace, monospace',
+                    whiteSpace: 'nowrap',
+                    pointerEvents: 'none',
+                  }}
+                >
+                  {cOverlay
+                    ? `${cOverlay.channels_used}/${cOverlay.capacity} ch`
+                    : dRoute?.has_channel
+                      ? '1 ch'
+                      : 'NO CH'}
+                </div>
+              </Html>
+            )}
+          </group>
+        )
+      })}
+
+      {/* Translucent Placement Ghost Preview */}
+      {ghostBlock && (
+        <group position={[ghostBlock.x, ghostBlock.y, ghostBlock.z]}>
+          <VoxelBlockModel
+            block={ghostBlock}
+            def={catalogMap.get(ghostBlock.block_def_id)}
+            blocksByCoord={blocksByCoord}
+            connectedDirs={ghostConnectedDirs}
+            opacity={0.45}
+          />
+          <mesh>
+            <boxGeometry args={[1.01, 1.01, 1.01]} />
+            <meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.28} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Subtle Wireframe Indicator when attaching a Terminal/Bus onto an existing Cable */}
+      {hoverTarget?.attachAsSubpart && hoverTarget.clickedBlockId && (
+        (() => {
+          const cb = blocks.find((b) => b.id === hoverTarget.clickedBlockId)
+          if (!cb) return null
+          return (
+            <group position={[cb.x, cb.y, cb.z]}>
+              <mesh>
+                <boxGeometry args={[0.85, 0.85, 0.85]} />
+                <meshBasicMaterial color="#a3e635" wireframe transparent opacity={0.6} />
+              </mesh>
+            </group>
+          )
+        })()
+      )}
+    </>
+  )
+}
+
+export function Workspace3D() {
+  const [webglSupported] = useState<boolean>(() => detectWebGLAvailable())
+
+  if (!webglSupported) {
+    return <Workspace2D fallbackNotice="WebGL unavailable — showing 2D layer grid" />
   }
 
   return (
-    <div
-      className="workspace-3d"
-      data-testid="workspace-3d"
-      style={{ width: '100%', height: '100%', position: 'relative', background: '#0b1120' }}
-    >
-      <Canvas camera={{ position: [8, 8, 9], fov: 45 }}>
-        <color attach="background" args={['#0b1120']} />
-        <ambientLight intensity={0.65} />
-        <hemisphereLight args={['#e2e8f0', '#0f172a', 0.45]} />
-        <directionalLight position={[12, 18, 10]} intensity={1.05} />
-        <directionalLight position={[-10, -8, -10]} intensity={0.3} />
-
-        <CameraPresetController preset={cameraPreset} />
-
-        {/* Reference slice grid & origin axes */}
-        <gridHelper
-          args={[24, 24, '#334155', '#1e293b']}
-          position={[0, activeLayerY - 0.5, 0]}
-        />
-        <axesHelper args={[3.5]} position={[-0.5, -0.49, -0.5]} />
-
-        {/* Interactive placement plane at activeLayerY */}
-        <mesh
-          position={[0, activeLayerY - 0.5, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          onPointerMove={handleGroundMove}
-          onPointerOut={() => setGhostCoord(null)}
-          onClick={handleGroundClick}
-        >
-          <planeGeometry args={[28, 28]} />
-          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-        </mesh>
-
-        {/* Placement Hover Ghost */}
-        {ghostCoord && activeMode === 'build' && activeBlockDefId && (
-          <mesh position={[ghostCoord.x, ghostCoord.y, ghostCoord.z]}>
-            <boxGeometry args={[0.96, 0.96, 0.96]} />
-            <meshBasicMaterial color="#8b5cf6" wireframe transparent opacity={0.65} />
-          </mesh>
-        )}
-
-        {/* Placed AE2 Network Blocks */}
-        {blocks.map((block) => {
-          const key = coordKey(block.x, block.y, block.z)
-          const def = catalogMap.get(block.block_def_id)
-          const cableOv = cableOverlayByCoord.get(key)
-          const routeOv = routeOverlayByCoord.get(key)
-          const connectedDirs = computeConnectedDirections(
-            block,
-            blocksByCoord,
-            catalogMap,
-            cableOv
-          )
-          const hasWarning = Boolean(
-            warningSet.has(key) ||
-              cableOv?.overloaded ||
-              (routeOv && !routeOv.has_channel)
-          )
-
-          return (
-            <ProceduralBlockMesh
-              key={block.id}
-              block={block}
-              def={def}
-              connectedDirs={connectedDirs}
-              cableOverlay={cableOv}
-              routeOverlay={routeOv}
-              isSelected={selectedBlockIds.includes(block.id)}
-              isHighlighted={highlightedSet.has(key)}
-              showNetworks={overlays.networks}
-              showConnections={overlays.connections}
-              showChannels={overlays.channels}
-              showEnergy={overlays.energy}
-              showWarnings={overlays.warnings}
-              hasWarning={hasWarning}
-              onBlockPointerDown={handleBlockClick}
-              onBlockPointerMove={handleBlockPointerMove}
-              onBlockPointerOut={() => setGhostCoord(null)}
-            />
-          )
-        })}
-      </Canvas>
-
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 10,
-          left: 12,
-          padding: '4px 10px',
-          borderRadius: 4,
-          background: 'rgba(17, 24, 39, 0.88)',
-          border: '1px solid #1e293b',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          color: '#94a3b8',
-          pointerEvents: 'none',
-        }}
+    <div className="sandbox-canvas-wrap" data-testid="workspace-3d">
+      <Canvas
+        camera={{ position: [-7.5, 6.5, 9.5], fov: 42, near: 0.1, far: 250 }}
+        gl={{ antialias: true, powerPreference: 'high-performance' }}
       >
-        Click grid (Y={activeLayerY}) to place • Click block to inspect • Alt+Click block face to
-        attach • Drag to orbit
-      </div>
+        <VoxelSandboxScene />
+      </Canvas>
     </div>
   )
 }

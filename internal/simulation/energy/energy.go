@@ -197,6 +197,139 @@ func Initialize(
 	return states, diagnostics.DeduplicateAndSort(diags)
 }
 
+// BridgeQuartzFibers shares AE power generation across ME networks bridged by Quartz Fibers
+// while preserving channel and storage isolation between subnetworks.
+func BridgeQuartzFibers(
+	simID string,
+	w *world.World,
+	nets []*network.Network,
+	states []*NetworkEnergy,
+	diags *[]domain.Diagnostic,
+	alloc *channels.Allocation,
+) {
+	if w == nil || len(nets) < 2 || len(states) < 2 {
+		return
+	}
+	coordToNet := make(map[domain.Coord3D]string)
+	for _, net := range nets {
+		for _, n := range net.Nodes {
+			coordToNet[n.Coord] = net.ID
+		}
+	}
+
+	adjNets := make(map[string]map[string]bool)
+	link := func(a, b string) {
+		if a == "" || b == "" || a == b {
+			return
+		}
+		if adjNets[a] == nil {
+			adjNets[a] = make(map[string]bool)
+		}
+		if adjNets[b] == nil {
+			adjNets[b] = make(map[string]bool)
+		}
+		adjNets[a][b] = true
+		adjNets[b][a] = true
+	}
+
+	for _, n := range w.Nodes {
+		if n.IsQuartzFiber() {
+			var touching []string
+			for _, dir := range domain.AllDirections() {
+				if nid := coordToNet[n.Coord.Adjacent(dir)]; nid != "" {
+					touching = append(touching, nid)
+				}
+			}
+			for i := range touching {
+				for j := i + 1; j < len(touching); j++ {
+					link(touching[i], touching[j])
+				}
+			}
+		}
+		if len(n.QuartzFiberFaces) > 0 {
+			srcNet := coordToNet[n.Coord]
+			for dir := range n.QuartzFiberFaces {
+				dstNet := coordToNet[n.Coord.Adjacent(dir)]
+				link(srcNet, dstNet)
+			}
+		}
+	}
+	if len(adjNets) == 0 {
+		return
+	}
+
+	stateByID := make(map[string]*NetworkEnergy, len(states))
+	for _, st := range states {
+		stateByID[st.NetworkID] = st
+	}
+
+	visited := make(map[string]bool)
+	poweredNetIDs := make(map[string]bool)
+	for _, st := range states {
+		if visited[st.NetworkID] || len(adjNets[st.NetworkID]) == 0 {
+			continue
+		}
+		queue := []string{st.NetworkID}
+		visited[st.NetworkID] = true
+		var group []*NetworkEnergy
+		var totalGen, totalDrain, totalStored float64
+		hasCreative := false
+		for len(queue) > 0 {
+			cur := queue[0]
+			queue = queue[1:]
+			if s := stateByID[cur]; s != nil {
+				group = append(group, s)
+				totalGen += s.Generation
+				totalDrain += s.BaseConsumption
+				totalStored += s.Stored
+				if s.HasCreativeSource {
+					hasCreative = true
+				}
+			}
+			for nb := range adjNets[cur] {
+				if !visited[nb] {
+					visited[nb] = true
+					queue = append(queue, nb)
+				}
+			}
+		}
+		if hasCreative || (totalGen+totalStored >= totalDrain && totalGen > 0) {
+			surplus := totalGen - totalDrain
+			if surplus < 0 {
+				surplus = 0
+			}
+			for _, member := range group {
+				if member.Generation == 0 {
+					member.Generation = member.BaseConsumption + surplus
+					if member.Stored == 0 && member.Capacity > 0 {
+						member.Stored = member.Capacity
+					}
+				}
+				if !member.StructuralOffline {
+					member.Online = true
+					poweredNetIDs[member.NetworkID] = true
+				}
+			}
+		}
+	}
+
+	if len(poweredNetIDs) > 0 && diags != nil {
+		filtered := make([]domain.Diagnostic, 0, len(*diags))
+		for _, d := range *diags {
+			if d.Code == diagnostics.CodeInsufficientEnergy && len(d.AffectedBlocks) > 0 {
+				fb := d.AffectedBlocks[0]
+				if poweredNetIDs[coordToNet[domain.Coord3D{X: fb.X, Y: fb.Y, Z: fb.Z}]] {
+					continue
+				}
+			}
+			filtered = append(filtered, d)
+		}
+		*diags = filtered
+	}
+	SyncCableOnlineStatus(alloc, states)
+	_ = simID
+}
+
 // StepEnergy advances network energy buffers by 1 tick, accounting for active Molecular Assemblers.
 func StepEnergy(
 	simID string,

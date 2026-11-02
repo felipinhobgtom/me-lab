@@ -838,9 +838,11 @@ export function BlockInspector() {
         )}
 
         {/* External Processing Machine */}
-        {primaryBlock.block_def_id === 'melab:external_machine' && (
+        {(primaryBlock.block_def_id === 'minecraft:furnace' ||
+          primaryBlock.block_def_id === 'minecraft:blast_furnace' ||
+          primaryBlock.block_def_id === 'ae2:inscriber') && (
           <div className="inspector-card">
-            <div className="inspector-section-title">External Processing Machine</div>
+            <div className="inspector-section-title">Processing Machine Settings</div>
             <div className="inspector-field">
               <label htmlFor="machine-ticks-field">Process Ticks per Operation</label>
               <input

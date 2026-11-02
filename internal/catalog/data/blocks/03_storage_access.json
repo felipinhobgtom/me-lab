@@ -37,8 +37,68 @@
         }
       ],
       "visual": {
-        "color": "#2b2d42",
-        "accent_color": "#06d6a0",
+        "color": "#4b5563",
+        "accent_color": "#22c55e",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:chest",
+    "name": "ME Chest",
+    "category": "storage",
+    "behavior_key": "drive",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/chest",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Single-slot ME storage chest with integrated top cell terminal.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#4b5563",
+        "accent_color": "#38bdf8",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:interface",
+    "name": "ME Interface",
+    "category": "storage",
+    "behavior_key": "interface",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/interface",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": false,
+      "description": "Accepts items pushed from machines, hoppers, or subnetworks directly into ME network storage.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#9ca3af",
+        "accent_color": "#60a5fa",
         "shape": "cube",
         "size": [1.0, 1.0, 1.0]
       }
@@ -62,15 +122,15 @@
       "energy_capacity": 25,
       "energy_generation": 0,
       "rotatable": true,
-      "description": "Interactive panel providing view, insert, extract, and autocraft request access to ME storage.",
+      "description": "Cable-mounted display panel providing view, insert, extract, and autocraft access to ME storage.",
       "connection_rules": {
         "connect_all_faces": true
       },
       "visual": {
-        "color": "#1e293b",
-        "accent_color": "#38bdf8",
+        "color": "#3b82f6",
+        "accent_color": "#93c5fd",
         "shape": "panel",
-        "size": [0.75, 0.75, 0.25]
+        "size": [0.75, 0.75, 0.1875]
       }
     }
   },
@@ -92,15 +152,165 @@
       "energy_capacity": 25,
       "energy_generation": 0,
       "rotatable": true,
-      "description": "ME Terminal with integrated 3x3 crafting grid and autocrafting job request access.",
+      "description": "Cable-mounted ME Terminal with integrated 3x3 crafting grid and autocrafting job launcher.",
       "connection_rules": {
         "connect_all_faces": true
       },
       "visual": {
-        "color": "#1e293b",
-        "accent_color": "#fbbf24",
+        "color": "#3b82f6",
+        "accent_color": "#bfdbfe",
         "shape": "panel",
-        "size": [0.75, 0.75, 0.25]
+        "size": [0.75, 0.75, 0.1875]
+      }
+    }
+  },
+  {
+    "id": "ae2:pattern_encoding_terminal",
+    "name": "ME Pattern Encoding Terminal",
+    "category": "storage",
+    "behavior_key": "terminal",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/terminals#pattern-encoding-terminal",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Cable-mounted terminal used to encode crafting and processing patterns.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#3b82f6",
+        "accent_color": "#60a5fa",
+        "shape": "panel",
+        "size": [0.75, 0.75, 0.1875]
+      }
+    }
+  },
+  {
+    "id": "ae2:pattern_access_terminal",
+    "name": "ME Pattern Access Terminal",
+    "category": "storage",
+    "behavior_key": "terminal",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/terminals#pattern-access-terminal",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Cable-mounted terminal exposing pattern slots of all Pattern Providers on the network.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#3b82f6",
+        "accent_color": "#93c5fd",
+        "shape": "panel",
+        "size": [0.75, 0.75, 0.1875]
+      }
+    }
+  },
+  {
+    "id": "ae2:import_bus",
+    "name": "ME Import Bus",
+    "category": "storage",
+    "behavior_key": "import_bus",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/import_bus",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Pulls items from the adjacent machine or container into ME network storage (uses 1 channel).",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#6b7280",
+        "accent_color": "#60a5fa",
+        "shape": "panel",
+        "size": [0.5, 0.5, 0.25]
+      }
+    }
+  },
+  {
+    "id": "ae2:export_bus",
+    "name": "ME Export Bus",
+    "category": "storage",
+    "behavior_key": "export_bus",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/export_bus",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Exports filtered items from ME network storage into the adjacent machine or container (uses 1 channel).",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#6b7280",
+        "accent_color": "#60a5fa",
+        "shape": "panel",
+        "size": [0.5, 0.5, 0.25]
+      }
+    }
+  },
+  {
+    "id": "ae2:storage_bus",
+    "name": "ME Storage Bus",
+    "category": "storage",
+    "behavior_key": "storage_bus",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/storage_bus",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Mounts an adjacent Barrel, Chest, or Interface as external storage on the ME network (uses 1 channel).",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#6b7280",
+        "accent_color": "#f59e0b",
+        "shape": "panel",
+        "size": [0.625, 0.625, 0.25]
       }
     }
   }

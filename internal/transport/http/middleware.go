@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/felipinho/me-lab/internal/auth"
+	"github.com/felipinho/me-lab/internal/repository/sqlite"
 	"github.com/google/uuid"
 )
 
@@ -140,6 +141,29 @@ func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), ctxKeyUserID, claims.UserID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// SandboxAuthMiddleware allows unauthenticated browser sandbox calls to operate under the persistent
+// built-in SQLite guest sandbox account, while validating Bearer JWTs when an Authorization header is present.
+func SandboxAuthMiddleware(jwtSecret string, store *sqlite.Store) func(http.Handler) http.Handler {
+	strict := AuthMiddleware(jwtSecret)
+	return func(next http.Handler) http.Handler {
+		strictHandler := strict(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.TrimSpace(r.Header.Get("Authorization")) != "" {
+				strictHandler.ServeHTTP(w, r)
+				return
+			}
+			userID := sqlite.SandboxUserID
+			if store != nil {
+				if id, err := store.EnsureSandboxUser(r.Context()); err == nil {
+					userID = id
+				}
+			}
+			ctx := context.WithValue(r.Context(), ctxKeyUserID, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

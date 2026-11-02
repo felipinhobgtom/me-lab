@@ -110,7 +110,7 @@ func NewRouter(deps Deps) *chi.Mux {
 
 		// Authenticated project & simulation endpoints
 		api.Group(func(authed chi.Router) {
-			authed.Use(AuthMiddleware(srv.jwtSecret))
+			authed.Use(SandboxAuthMiddleware(srv.jwtSecret, srv.store))
 
 			authed.Route("/projects", func(proj chi.Router) {
 				proj.Post("/", srv.handleCreateProject)
