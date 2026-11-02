@@ -8,13 +8,13 @@ import (
 
 // Standard error codes returned by the API.
 const (
-	ErrCodeUnauthorized    = "UNAUTHORIZED"
-	ErrCodeNotFound        = "NOT_FOUND"
-	ErrCodeValidation      = "VALIDATION_ERROR"
-	ErrCodeInternal        = "INTERNAL_ERROR"
-	ErrCodeForbidden       = "FORBIDDEN"
-	ErrCodeConflict        = "CONFLICT"
-	ErrCodeBadRequest      = "BAD_REQUEST"
+	ErrCodeUnauthorized = "UNAUTHORIZED"
+	ErrCodeNotFound     = "NOT_FOUND"
+	ErrCodeValidation   = "VALIDATION_ERROR"
+	ErrCodeInternal     = "INTERNAL_ERROR"
+	ErrCodeForbidden    = "FORBIDDEN"
+	ErrCodeConflict     = "CONFLICT"
+	ErrCodeBadRequest   = "BAD_REQUEST"
 )
 
 // APIError is the error envelope returned to clients.

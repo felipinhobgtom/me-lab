@@ -9,55 +9,76 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/felipinho/me-lab/internal/catalog"
+	"github.com/felipinho/me-lab/internal/config"
 	"github.com/felipinho/me-lab/internal/repository/sqlite"
+	"github.com/felipinho/me-lab/internal/simulation"
 	transport "github.com/felipinho/me-lab/internal/transport/http"
 )
 
-const defaultPort = "8080"
-
 func main() {
-	// --- Configuration from environment ---
-	port := envOrDefault("PORT", defaultPort)
-	databaseURL := envOrDefault("DATABASE_URL", "me-lab.db")
-	jwtSecret := envOrDefault("JWT_SECRET", "dev-secret-change-me")
-	logLevel := envOrDefault("LOG_LEVEL", "info")
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("invalid startup configuration", "error", err)
+		os.Exit(1)
+	}
 
-	// --- Structured logger ---
-	logger := newLogger(logLevel)
+	logger := newLogger(cfg.LogLevel)
 	slog.SetDefault(logger)
 
 	logger.Info("starting ME Lab API",
-		"port", port,
-		"database", databaseURL,
-		"log_level", logLevel,
+		"host", cfg.Host,
+		"port", cfg.Port,
+		"database", cfg.DatabaseURL,
+		"log_level", cfg.LogLevel,
 	)
 
-	// --- Database ---
-	db, err := sqlite.NewDB(databaseURL)
+	// Open SQLite connection pool (WAL + foreign_keys=ON + busy_timeout)
+	db, err := sqlite.NewDB(cfg.DatabaseURL)
 	if err != nil {
-		logger.Error("failed to open database", "error", err)
+		logger.Error("failed to open SQLite database", "error", err)
 		os.Exit(1)
 	}
 	defer db.Close()
 
-	logger.Info("database connected", "url", databaseURL)
+	// Run embedded Goose SQL migrations
+	if err := sqlite.Migrate(db); err != nil {
+		logger.Error("failed to apply SQLite migrations", "error", err)
+		os.Exit(1)
+	}
 
-	// --- Router ---
+	// Load embedded AE2 compatibility profiles & block catalog and seed DB
+	reg, err := catalog.NewRegistry()
+	if err != nil {
+		logger.Error("failed to load AE2 catalog registry", "error", err)
+		os.Exit(1)
+	}
+	if err := sqlite.SeedCatalog(context.Background(), db, reg); err != nil {
+		logger.Error("failed to seed AE2 catalog into SQLite", "error", err)
+		os.Exit(1)
+	}
+
+	store := sqlite.NewStore(db)
+	engine := simulation.NewEngine()
+
 	router := transport.NewRouter(transport.Deps{
-		Logger:    logger,
-		JWTSecret: jwtSecret,
+		Logger:             logger,
+		Store:              store,
+		Catalog:            reg,
+		Engine:             engine,
+		JWTSecret:          cfg.JWTSecret,
+		JWTExpiry:          cfg.JWTExpiry,
+		CORSAllowedOrigins: cfg.CORSAllowedOrigins,
 	})
 
-	// --- HTTP Server ---
 	srv := &http.Server{
-		Addr:         ":" + port,
+		Addr:         cfg.Host + ":" + cfg.Port,
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// --- Graceful shutdown ---
 	errCh := make(chan error, 1)
 	go func() {
 		logger.Info("HTTP server listening", "addr", srv.Addr)
@@ -72,31 +93,20 @@ func main() {
 		logger.Info("shutdown signal received", "signal", sig.String())
 	case err := <-errCh:
 		if err != nil && err != http.ErrServerClosed {
-			logger.Error("server error", "error", err)
+			logger.Error("HTTP server error", "error", err)
+			os.Exit(1)
 		}
 	}
 
-	// Give outstanding requests 10 seconds to complete.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Error("server shutdown error", "error", err)
+		logger.Error("graceful shutdown error", "error", err)
 		os.Exit(1)
 	}
-
 	logger.Info("server stopped gracefully")
 }
 
-// envOrDefault reads an environment variable, returning def if not set.
-func envOrDefault(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-// newLogger creates a structured slog.Logger at the requested level.
 func newLogger(level string) *slog.Logger {
 	var lvl slog.Level
 	switch level {
@@ -109,8 +119,5 @@ func newLogger(level string) *slog.Logger {
 	default:
 		lvl = slog.LevelInfo
 	}
-
-	opts := &slog.HandlerOptions{Level: lvl}
-	handler := slog.NewJSONHandler(os.Stdout, opts)
-	return slog.New(handler)
+	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 }
