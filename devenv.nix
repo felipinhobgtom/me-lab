@@ -1,8 +1,10 @@
 { pkgs, lib, config, ... }:
 
 {
+  # Avoid requiring nix.settings.trusted-users on NixOS
+  cachix.enable = false;
+
   env = {
-    CGO_ENABLED = "0";
     PORT = "8080";
     DATABASE_URL = "${config.devenv.state}/me-lab.db";
     JWT_SECRET = "dev-local-devenv-secret-do-not-use-in-prod";
@@ -24,7 +26,6 @@
     sqlite
     jq
     curl
-    azure-cli
   ];
 
   processes = {
@@ -34,11 +35,11 @@
 
   scripts = {
     melab-test.exec = ''
-      go test -race ./...
+      go test -race ./cmd/... ./internal/... ./migrations/...
       npm --prefix web run test
     '';
     melab-lint.exec = ''
-      go vet ./...
+      go vet ./cmd/... ./internal/... ./migrations/...
       npm --prefix web run type-check
     '';
   };
@@ -49,7 +50,7 @@
   '';
 
   enterTest = ''
-    go vet ./...
-    go test -race ./...
+    go vet ./cmd/... ./internal/... ./migrations/...
+    go test -race ./cmd/... ./internal/... ./migrations/...
   '';
 }

@@ -9,11 +9,18 @@ Thank you for your interest in contributing to ME Lab! This guide will help you 
 - **Docker** — [Install Docker](https://docs.docker.com/get-docker/)
 - **Make** — Usually pre-installed on Linux/macOS; on Windows use WSL or `choco install make`
 
+
+### NixOS / Nix Flakes + `devenv`
+On NixOS (or any system with Nix + `devenv` installed), all Go, Node.js, SQLite, `goose`, and `staticcheck` dependencies are provisioned declaratively:
+```bash
+direnv allow .   # activates devenv automatically via .envrc
+# or run `devenv shell` / `nix develop`
+```
 ## Local Setup
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-org/me-lab.git
+   git clone https://github.com/felipinhobgtom/me-lab.git
    cd me-lab
    ```
 

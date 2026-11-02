@@ -30,11 +30,9 @@
               curl
               git
               docker-compose
-              azure-cli
             ];
 
             env = {
-              CGO_ENABLED = "0";
               PORT = "8080";
               DATABASE_URL = "me-lab.db";
               LOG_LEVEL = "debug";

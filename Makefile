@@ -6,7 +6,8 @@
 # Variables
 # ──────────────────────────────────────────────
 BINARY_NAME := me-lab
-GO_FILES     := $(shell find . -name '*.go' -not -path './vendor/*')
+GO_FILES     := $(shell find cmd internal migrations -name '*.go')
+GO_PKGS      := ./cmd/... ./internal/... ./migrations/...
 COVERAGE     := coverage.out
 
 # ──────────────────────────────────────────────
@@ -44,13 +45,13 @@ build-frontend:
 ## test: Run Go tests with coverage
 test:
 	@echo "▸ Running Go tests..."
-	go test -race -coverprofile=$(COVERAGE) -covermode=atomic ./...
+	go test -race -coverprofile=$(COVERAGE) -covermode=atomic $(GO_PKGS)
 	@go tool cover -func=$(COVERAGE) | tail -1
 
 ## test-frontend: Run frontend tests
 test-frontend:
 	@echo "▸ Running frontend tests..."
-	cd web && npm run test -- --run
+	cd web && npm run test
 
 ## test-all: Run all tests (backend + frontend)
 test-all: test test-frontend
@@ -62,9 +63,9 @@ test-all: test test-frontend
 ## lint: Run go vet and staticcheck
 lint:
 	@echo "▸ Running go vet..."
-	go vet ./...
+	go vet $(GO_PKGS)
 	@echo "▸ Running staticcheck..."
-	staticcheck ./...
+	staticcheck $(GO_PKGS)
 
 ## lint-frontend: Run eslint and TypeScript type-check
 lint-frontend:

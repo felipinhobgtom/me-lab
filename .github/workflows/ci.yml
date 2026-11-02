@@ -24,7 +24,7 @@ jobs:
 
       - name: Check gofmt
         run: |
-          unformatted=$(gofmt -l .)
+          unformatted=$(gofmt -l cmd internal migrations)
           if [ -n "$unformatted" ]; then
             echo "Unformatted Go files:"
             echo "$unformatted"
@@ -32,12 +32,15 @@ jobs:
           fi
 
       - name: Run go vet
-        run: go vet ./...
+        run: go vet ./cmd/... ./internal/... ./migrations/...
 
-      - name: Run Go unit and integration tests
+      - name: Run Go unit and integration tests with race detector
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./cmd/... ./internal/... ./migrations/...
+
+      - name: Verify pure-Go static binary compilation (CGO_ENABLED=0)
         env:
           CGO_ENABLED: "0"
-        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+        run: go build -trimpath ./cmd/api ./cmd/migrate
 
   frontend:
     name: Frontend Lint, Typecheck, Tests & Build

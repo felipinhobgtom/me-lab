@@ -29,6 +29,7 @@ coverage.html
 !.env.example
 *credentials*.json
 *.pem
+*.tsbuildinfo
 *.key
 
 # Frontend dependencies & build output
