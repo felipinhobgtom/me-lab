@@ -1,0 +1,66 @@
+name: me-lab-prod
+
+services:
+  api:
+    image: ghcr.io/${GITHUB_REPOSITORY:-felipinho/me-lab}/api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - path: ../../.env
+        required: false
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "${DATABASE_URL:-/mnt/melab-data/me-lab.db}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set in /opt/me-lab/.env}"
+      JWT_EXPIRY_HOURS: "${JWT_EXPIRY_HOURS:-24}"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-https://localhost}"
+    volumes:
+      - /mnt/melab-data:/mnt/melab-data
+    ports:
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - melab_internal
+
+  web:
+    image: ghcr.io/${GITHUB_REPOSITORY:-felipinho/me-lab}/web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8081"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - melab_internal
+
+networks:
+  melab_internal:
+    driver: bridge

@@ -1,0 +1,19 @@
+flowchart TB
+    User["👤 Minecraft / AE2 Player<br/>(Network Designer & Troubleshooter)"]
+    Browser["🌐 Web Browser<br/>React 18 + Three.js (R3F) SPA<br/>3D Voxel Editor & 2D Y-Slice View"]
+
+    subgraph AzureCloud["☁️ Microsoft Azure (Single-Region Production)"]
+        direction TB
+        MELab["⚡ ME Lab Platform (Azure Linux VM)<br/>Nginx TLS Proxy + Go 1.26 API + Pure-Go Simulation Engine<br/>SQLite WAL Persistence (/mnt/melab-data/me-lab.db)"]
+        BlobStorage[("🗄️ Azure Blob Storage<br/>Container: sqlite-backups<br/>Compressed + SHA-256 Verified Snapshots")]
+    end
+
+    GitHubCI["🚀 GitHub Actions CI/CD<br/>Go Vet/Race Tests • Vitest/TSC • GHCR Build<br/>Passwordless Azure OIDC Deployment"]
+    AE2Guide["📖 AE2 Official Guide (1.21.1)<br/>guide.appliedenergistics.org/1.21.1/<br/>Channel, Storage & Autocrafting Rules Reference"]
+
+    User -->|"Designs 3D ME networks, configures cells & patterns,<br/>steps tick simulations, exports build sheets"| Browser
+    Browser -->|"HTTPS (TLS 1.2/1.3) JSON REST API<br/>/api/v1/* • JWT Bearer Auth"| MELab
+    GitHubCI -->|"Pushes api & web images to GHCR;<br/>triggers az vm run-command via OIDC"| MELab
+    MELab -->|"Daily online sqlite3 .backup + gzip<br/>via System-Assigned Managed Identity RBAC"| BlobStorage
+    MELab -.->|"Models versioned compatibility profile<br/>& cites mechanics documentation"| AE2Guide
+    User -.->|"Reproduces exported Markdown<br/>Build Sheet in Minecraft"| AE2Guide

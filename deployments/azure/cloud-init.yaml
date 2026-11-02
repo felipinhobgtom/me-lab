@@ -1,0 +1,92 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - git
+  - jq
+  - gzip
+  - sqlite3
+  - nginx
+  - certbot
+  - python3-certbot-nginx
+
+write_files:
+  - path: /etc/systemd/system/melab-backup.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=ME Lab Online SQLite WAL Backup to Azure Blob Storage
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      WorkingDirectory=/opt/me-lab
+      EnvironmentFile=-/opt/me-lab/.env
+      ExecStart=/opt/me-lab/scripts/backup-sqlite.sh
+      StandardOutput=journal
+      StandardError=journal
+
+  - path: /etc/systemd/system/melab-backup.timer
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Daily 02:00 UTC Timer for ME Lab SQLite Backup
+
+      [Timer]
+      OnCalendar=*-*-* 02:00:00 UTC
+      RandomizedDelaySec=300
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+runcmd:
+  - |
+    set -euxo pipefail
+
+    # 1. Install Docker Engine & Docker Compose plugin from official repository
+    install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
+    . /etc/os-release
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" > /etc/apt/sources.list.d/docker.list
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    systemctl enable --now docker
+
+    # 2. Install Azure CLI for Managed Identity Blob Storage uploads
+    curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+
+    # 3. Format (if unformatted) and persistently mount Azure Managed Disk (LUN 0) at /mnt/melab-data
+    DATA_DEV="/dev/disk/azure/scsi1/lun0"
+    for _ in $(seq 1 30); do
+      [ -b "$DATA_DEV" ] && break
+      sleep 2
+    done
+    if [ -b "$DATA_DEV" ]; then
+      if ! blkid "$DATA_DEV" >/dev/null 2>&1; then
+        mkfs.ext4 -L melab-data "$DATA_DEV"
+      fi
+      mkdir -p /mnt/melab-data
+      DISK_UUID="$(blkid -s UUID -o value "$DATA_DEV")"
+      if ! grep -q "$DISK_UUID" /etc/fstab; then
+        echo "UUID=${DISK_UUID} /mnt/melab-data ext4 defaults,nofail 0 2" >> /etc/fstab
+      fi
+      mount -a
+      # Match non-root melab user UID:GID (10001:10001) inside the API container
+      chown -R 10001:10001 /mnt/melab-data
+      chmod 0750 /mnt/melab-data
+    fi
+
+    # 4. Prepare application & ACME directories and enable daily backup timer
+    mkdir -p /opt/me-lab /var/www/certbot
+    systemctl daemon-reload
+    systemctl enable --now melab-backup.timer
+    systemctl enable --now nginx

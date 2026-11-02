@@ -1,0 +1,57 @@
+flowchart TB
+    subgraph Frontend["Frontend SPA (web/ — React 18 + TypeScript + Vite)"]
+        UIEditor["3D Voxel Canvas (React Three Fiber)<br/>+ Synchronized 2D Y-Slice Fallback"]
+        UIInspector["Block Inspector, Drive Cell Partitioner<br/>& Pattern Encoder UI"]
+        UISim["Simulation Controls, Tick Timeline,<br/>Channel Overlay & Diagnostics Panel"]
+        APIClient["Typed REST Client (web/src/lib/api)<br/>JWT Bearer + Request Correlation"]
+        UIEditor --> APIClient
+        UIInspector --> APIClient
+        UISim --> APIClient
+    end
+
+    subgraph Transport["HTTP Transport Layer (internal/transport/http)"]
+        Middleware["Chi Middleware Stack<br/>RequestID • MaxBodySize • Structured slog • Recoverer • CORS • JWT Auth"]
+        Router["Chi REST Router (/api/v1, /health, /ready, /openapi.json, /docs)"]
+        Middleware --> Router
+    end
+
+    subgraph AppLayer["Application & Domain Services"]
+        AuthSvc["Auth Service (internal/auth)<br/>Argon2id Password Hashing + HMAC-SHA256 JWT"]
+        CatalogSvc["Catalog Service (internal/catalog)<br/>Embedded AE2 1.21.1 Profiles & Block Definitions"]
+        ProjectSvc["Project & Voxel Layout Handlers<br/>(internal/transport/http/handlers_projects.go)"]
+        SimOrchestrator["Simulation Orchestrator<br/>Validation & Stateful Tick Stepping"]
+        ExportSvc["Export Service (internal/export)<br/>Deterministic JSON Blueprint & Markdown Build Sheet"]
+    end
+
+    subgraph SimEngine["Pure Go Simulation Engine (internal/simulation — Zero DB/HTTP Imports)"]
+        direction LR
+        SimWorld["world<br/>3D Grid, Adjacency &<br/>Multiblock Discovery"]
+        SimNetwork["network<br/>Connected Components,<br/>Cable Color/Anchor &<br/>Controller Rules"]
+        SimChannels["channels<br/>3-Stage Routing:<br/>Local -> Dense Trunk -> Controller<br/>& Ad-Hoc 8ch Mode"]
+        SimEnergy["energy<br/>2 FE = 1 AE Conversion,<br/>Buffers, Passive/Active<br/>Drain & Brownout"]
+        SimStorage["storage<br/>ME Drive Priority,<br/>63-Type & Byte Math,<br/>Whitelist/Inverter"]
+        SimCrafting["crafting<br/>CPU Rectangular Prisms,<br/>Recursive Tree Planner,<br/>Co-Processors & Providers"]
+        SimDiag["diagnostics<br/>Structured Error/Warning<br/>Codes & Remediation"]
+
+        SimWorld --> SimNetwork --> SimChannels --> SimEnergy --> SimStorage --> SimCrafting --> SimDiag
+    end
+
+    subgraph Persistence["Persistence Layer (internal/repository/sqlite)"]
+        SQLiteRepo["SQLite Repository<br/>modernc.org/sqlite (CGO_ENABLED=0)<br/>Embedded Goose Migrations"]
+        SQLiteDB[("SQLite Database (me-lab.db)<br/>WAL Mode • foreign_keys=ON<br/>busy_timeout=5000ms")]
+        SQLiteRepo --> SQLiteDB
+    end
+
+    APIClient -->|"HTTPS / JSON"| Middleware
+    Router --> AuthSvc
+    Router --> CatalogSvc
+    Router --> ProjectSvc
+    Router --> SimOrchestrator
+    Router --> ExportSvc
+
+    AuthSvc --> SQLiteRepo
+    CatalogSvc --> SQLiteRepo
+    ProjectSvc --> SQLiteRepo
+    SimOrchestrator --> SimEngine
+    SimOrchestrator --> SQLiteRepo
+    ExportSvc --> CatalogSvc

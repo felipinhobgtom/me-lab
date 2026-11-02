@@ -1,0 +1,117 @@
+erDiagram
+    users {
+        TEXT id PK
+        TEXT email UK "NOT NULL UNIQUE"
+        TEXT password_hash "Argon2id encoded hash"
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    compatibility_profiles {
+        TEXT id PK "e.g. ae2-1.21.1-default"
+        TEXT name
+        TEXT minecraft_version
+        TEXT ae2_version
+        TEXT channel_mode "default | x2 | infinite"
+        TEXT config_json "ProfileConfig JSON"
+    }
+
+    projects {
+        TEXT id PK
+        TEXT owner_user_id FK "REFERENCES users(id) ON DELETE CASCADE"
+        TEXT name
+        TEXT description
+        TEXT compatibility_profile_id FK "REFERENCES compatibility_profiles(id)"
+        TEXT settings_json
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    block_definitions {
+        TEXT id PK "Composite PK (id, profile_id)"
+        TEXT profile_id PK,FK "REFERENCES compatibility_profiles(id) ON DELETE CASCADE"
+        TEXT name
+        TEXT category
+        TEXT metadata_json "BlockMetadata JSON"
+        TEXT behavior_key
+        TEXT fidelity_label "exact | approximated | unsupported"
+        TEXT doc_reference
+    }
+
+    project_blocks {
+        TEXT id PK
+        TEXT project_id FK "REFERENCES projects(id) ON DELETE CASCADE"
+        TEXT block_definition_id "Catalog block ID (UNIQUE per project x,y,z)"
+        INTEGER x
+        INTEGER y
+        INTEGER z
+        TEXT facing "north | south | east | west | up | down"
+        TEXT configuration_json
+        TEXT label
+        DATETIME created_at
+        DATETIME updated_at
+    }
+
+    project_patterns {
+        TEXT id PK
+        TEXT project_id FK "REFERENCES projects(id) ON DELETE CASCADE"
+        TEXT pattern_type "crafting | processing"
+        TEXT inputs_json "ItemStack[] JSON"
+        TEXT outputs_json "ItemStack[] JSON"
+        TEXT configuration_json
+        DATETIME created_at
+    }
+
+    project_inventory {
+        TEXT id PK
+        TEXT project_id FK "REFERENCES projects(id) ON DELETE CASCADE"
+        TEXT item_id
+        INTEGER quantity "CHECK (quantity >= 0)"
+        TEXT storage_location_json
+        DATETIME created_at
+    }
+
+    simulation_runs {
+        TEXT id PK
+        TEXT project_id FK "REFERENCES projects(id) ON DELETE CASCADE"
+        TEXT snapshot_json
+        TEXT state_json
+        TEXT status "pending | running | paused | completed | failed"
+        INTEGER seed
+        INTEGER current_tick
+        DATETIME started_at
+        DATETIME finished_at "NULL while active"
+        TEXT summary_json "SimulationSummary JSON"
+        TEXT overlay_json "TopologyOverlay JSON"
+    }
+
+    simulation_events {
+        TEXT id PK
+        TEXT simulation_id FK "REFERENCES simulation_runs(id) ON DELETE CASCADE"
+        INTEGER sequence_number "UNIQUE (simulation_id, sequence_number)"
+        INTEGER tick
+        TEXT event_type
+        TEXT payload_json
+    }
+
+    simulation_diagnostics {
+        TEXT id PK
+        TEXT simulation_id FK "REFERENCES simulation_runs(id) ON DELETE CASCADE"
+        TEXT code
+        TEXT severity "info | warning | error"
+        TEXT message
+        TEXT affected_blocks_json
+        TEXT remediation_json
+        INTEGER blocks_simulation "0 or 1 boolean"
+    }
+
+    users ||--o{ projects : "owns"
+    compatibility_profiles ||--o{ projects : "binds_ruleset"
+    compatibility_profiles ||--o{ block_definitions : "scopes_catalog"
+    projects ||--o{ project_blocks : "places_in_grid"
+    block_definitions ||--o{ project_blocks : "defines_behavior"
+    projects ||--o{ project_patterns : "encodes"
+    projects ||--o{ project_inventory : "seeds_items"
+    projects ||--o{ simulation_runs : "executes"
+    simulation_runs ||--o{ simulation_events : "records_ticks"
+    simulation_runs ||--o{ simulation_diagnostics : "emits_issues"

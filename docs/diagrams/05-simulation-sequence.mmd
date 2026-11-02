@@ -1,0 +1,62 @@
+sequenceDiagram
+    autonumber
+    actor User as Player (Browser UI)
+    participant HTTP as Chi HTTP Handler + JWT Auth
+    participant Svc as Simulation Service
+    participant Engine as Simulation Engine<br/>(World→Network→Channels→Energy→Storage→Crafting)
+    participant Repo as SQLite Repository (WAL)
+
+    rect rgb(235, 245, 255)
+        Note over User,Repo: Phase 1 — Static Network Validation
+        User->>HTTP: POST /api/v1/projects/{projectId}/validate
+        HTTP->>Svc: ValidateProject(ctx, userID, projectID)
+        Svc->>Repo: Load Project, CompatibilityProfile, Blocks, Patterns & Inventory
+        Repo-->>Svc: ProjectAggregate
+        Svc->>Engine: Validate(snapshot, profile, catalog)
+        activate Engine
+        Engine->>Engine: 1. World: Assemble 3D voxel grid & Controller/CPU multiblocks
+        Engine->>Engine: 2. Network: Partition connected components (colors, anchors, directional push faces)
+        Engine->>Engine: 3. Channels: Run 3-stage solver (local 8ch → dense 32ch → controller face 32ch)
+        Engine->>Engine: 4. Energy: Compute FE→AE generation, buffers & passive drain
+        Engine->>Engine: 5. Storage: Index online ME Drives by priority, partition & byte/type capacity
+        Engine->>Engine: 6. Diagnostics: Emit structural, channel, energy & unsupported-block diagnostics
+        Engine-->>Svc: ValidationResult (valid, summary, diagnostics, overlay)
+        deactivate Engine
+        Svc-->>HTTP: ValidationResult
+        HTTP-->>User: 200 OK (Channel/Network Overlay + Diagnostics)
+    end
+
+    rect rgb(240, 255, 240)
+        Note over User,Repo: Phase 2 — Stateful Crafting Simulation & Deterministic Tick Stepping
+        User->>HTTP: POST /api/v1/projects/{projectId}/simulations (seed, crafting_request)
+        HTTP->>Svc: StartSimulation(ctx, userID, projectID, req)
+        Svc->>Repo: Load ProjectAggregate
+        Repo-->>Svc: ProjectAggregate
+        Svc->>Engine: NewSimulation(snapshot, seed, craftingRequest)
+        Engine->>Engine: Plan recursive crafting tree, allocate Crafting CPU bytes & reserve Storage inputs
+        Engine-->>Svc: Initial SimulationState (tick=0) + Diagnostics + Events
+        Svc->>Repo: Insert simulation_runs, simulation_events & simulation_diagnostics (TX)
+        Repo-->>Svc: Persisted SimulationRun
+        Svc-->>HTTP: SimulationRun (status=running, current_tick=0)
+        HTTP-->>User: 201 Created
+
+        loop Step N Ticks Until Completed or Paused
+            User->>HTTP: POST /api/v1/simulations/{simulationId}/step (ticks=N)
+            HTTP->>Svc: StepSimulation(ctx, userID, simulationID, ticks)
+            Svc->>Repo: GetSimulationRun(simulationID)
+            Repo-->>Svc: Snapshot + Current State
+            Svc->>Engine: Step(state, ticks)
+            activate Engine
+            Engine->>Engine: Energy Tick: Convert FE→AE, charge Energy Cells, deduct drain (check brownout)
+            Engine->>Engine: Crafting Tick: Dispatch up to (1 + co_processors) batches via Pattern Providers
+            Engine->>Engine: Machine Tick: Advance Molecular Assemblers & External Machines; return outputs
+            Engine->>Engine: Storage Tick: Insert crafted items into highest-priority matching ME Drive cells
+            Engine->>Engine: Overlay & Diagnostics: Refresh live CPU jobs, cell occupancy & sequence events
+            Engine-->>Svc: Updated State, Tick Events[], Diagnostics[]
+            deactivate Engine
+            Svc->>Repo: Update simulation_runs + Append simulation_events & diagnostics (TX)
+            Repo-->>Svc: Committed Step
+            Svc-->>HTTP: SimulationStepResult (tick, events, diagnostics, state)
+            HTTP-->>User: 200 OK (Updated 3D Overlay, CPU Job Progress & Event Log)
+        end
+    end

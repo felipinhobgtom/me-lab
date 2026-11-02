@@ -1,0 +1,1498 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ME Lab — AE2 Network Designer & Simulator API",
+    "version": "1.0.0",
+    "description": "Versioned REST API for designing, persisting, validating, simulating, and exporting Applied Energistics 2 (AE2) networks.",
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current ME Lab server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "APIError": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "request_id"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "CHANNEL_CAPACITY_EXCEEDED"
+              },
+              "message": {
+                "type": "string",
+                "example": "A cable segment does not have enough channel capacity."
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "AuthCredentials": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "required": [
+          "user",
+          "token"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/User"
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "CompatibilityProfile": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "minecraft_version",
+          "ae2_version",
+          "channel_mode",
+          "config"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "ae2-1.21.1-default"
+          },
+          "name": {
+            "type": "string"
+          },
+          "minecraft_version": {
+            "type": "string",
+            "example": "1.21.1"
+          },
+          "ae2_version": {
+            "type": "string",
+            "example": "19.2.x"
+          },
+          "channel_mode": {
+            "type": "string",
+            "enum": [
+              "default",
+              "x2",
+              "x3",
+              "x4",
+              "infinite"
+            ]
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "BlockDefinition": {
+        "type": "object",
+        "required": [
+          "id",
+          "profile_id",
+          "name",
+          "category",
+          "metadata",
+          "behavior_key",
+          "fidelity",
+          "doc_reference"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "ae2:controller"
+          },
+          "profile_id": {
+            "type": "string",
+            "example": "ae2-1.21.1-default"
+          },
+          "name": {
+            "type": "string",
+            "example": "ME Controller"
+          },
+          "category": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "behavior_key": {
+            "type": "string"
+          },
+          "fidelity": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "approximated",
+              "unsupported"
+            ]
+          },
+          "doc_reference": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "Project": {
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "name",
+          "description",
+          "profile_id",
+          "settings",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "profile_id": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateProjectRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string"
+          },
+          "profile_id": {
+            "type": "string",
+            "default": "ae2-1.21.1-default"
+          },
+          "settings": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "PlacedBlock": {
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "block_def_id",
+          "x",
+          "y",
+          "z",
+          "facing",
+          "config",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "block_def_id": {
+            "type": "string",
+            "example": "ae2:smart_cable"
+          },
+          "x": {
+            "type": "integer"
+          },
+          "y": {
+            "type": "integer"
+          },
+          "z": {
+            "type": "integer"
+          },
+          "facing": {
+            "type": "string",
+            "enum": [
+              "north",
+              "south",
+              "east",
+              "west",
+              "up",
+              "down"
+            ]
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "label": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PlaceBlockRequest": {
+        "type": "object",
+        "required": [
+          "block_def_id",
+          "x",
+          "y",
+          "z"
+        ],
+        "properties": {
+          "block_def_id": {
+            "type": "string"
+          },
+          "x": {
+            "type": "integer"
+          },
+          "y": {
+            "type": "integer"
+          },
+          "z": {
+            "type": "integer"
+          },
+          "facing": {
+            "type": "string",
+            "enum": [
+              "north",
+              "south",
+              "east",
+              "west",
+              "up",
+              "down"
+            ]
+          },
+          "config": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      },
+      "BatchBlocksRequest": {
+        "type": "object",
+        "required": [
+          "operations"
+        ],
+        "properties": {
+          "replace_all": {
+            "type": "boolean",
+            "default": false
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "operation"
+              ],
+              "properties": {
+                "operation": {
+                  "type": "string",
+                  "enum": [
+                    "create",
+                    "update",
+                    "delete"
+                  ]
+                },
+                "block_id": {
+                  "type": "string"
+                },
+                "data": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "Diagnostic": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "severity",
+          "message",
+          "affected_blocks",
+          "blocks_simulation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "simulation_id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "example": "DEVICE_NO_CHANNEL"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "affected_blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "x",
+                "y",
+                "z"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "x": {
+                  "type": "integer"
+                },
+                "y": {
+                  "type": "integer"
+                },
+                "z": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "remediation": {
+            "type": "string"
+          },
+          "blocks_simulation": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SimulationRun": {
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "status",
+          "seed",
+          "current_tick",
+          "summary",
+          "started_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "project_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "paused",
+              "completed",
+              "failed"
+            ]
+          },
+          "seed": {
+            "type": "integer"
+          },
+          "current_tick": {
+            "type": "integer"
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "overlay": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateSimulationRequest": {
+        "type": "object",
+        "properties": {
+          "seed": {
+            "type": "integer",
+            "default": 1
+          },
+          "auto_steps": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500,
+            "default": 0
+          },
+          "crafting_requests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "item_id",
+                "quantity"
+              ],
+              "properties": {
+                "item_id": {
+                  "type": "string",
+                  "example": "minecraft:chest"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "source": {
+                  "type": "string",
+                  "default": "terminal"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Liveness check",
+        "responses": {
+          "200": {
+            "description": "Service alive"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Readiness check including SQLite connectivity",
+        "responses": {
+          "200": {
+            "description": "Ready"
+          },
+          "503": {
+            "description": "Database unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Register a new user account",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCredentials"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Account created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Email already registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Authenticate user and obtain JWT",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthCredentials"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Get current authenticated user",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/catalog/profiles": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "List AE2 compatibility profiles",
+        "responses": {
+          "200": {
+            "description": "Profiles list"
+          }
+        }
+      }
+    },
+    "/api/v1/catalog/blocks": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "List block definitions for a compatibility profile",
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "ae2-1.21.1-default"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Block catalog"
+          }
+        }
+      }
+    },
+    "/api/v1/catalog/blocks/{blockDefinitionId}": {
+      "get": {
+        "tags": [
+          "Catalog"
+        ],
+        "summary": "Get a single block definition",
+        "parameters": [
+          {
+            "name": "blockDefinitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "profile_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "ae2-1.21.1-default"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Block definition"
+          },
+          "404": {
+            "description": "Block definition not found"
+          }
+        }
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "List projects owned by current user",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated projects"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Create a new project",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created project"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Get project details",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Update project metadata or settings",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated project"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "Delete project and all blocks/simulations",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/blocks": {
+      "get": {
+        "tags": [
+          "Project Layout"
+        ],
+        "summary": "List placed blocks in a project",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Placed blocks"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Project Layout"
+        ],
+        "summary": "Place a block at a 3D grid coordinate",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceBlockRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Placed block"
+          },
+          "409": {
+            "description": "Coordinate already occupied"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/blocks/batch": {
+      "post": {
+        "tags": [
+          "Project Layout"
+        ],
+        "summary": "Atomically apply bulk block create/update/delete or full snapshot save",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchBlocksRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated block list"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/blocks/{blockId}": {
+      "patch": {
+        "tags": [
+          "Project Layout"
+        ],
+        "summary": "Update placed block orientation, coordinate, label, or config",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "blockId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated block"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Project Layout"
+        ],
+        "summary": "Delete placed block",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "blockId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/validate": {
+      "post": {
+        "tags": [
+          "Simulation & Validation"
+        ],
+        "summary": "Run static AE2 network, multiblock, channel, storage, and energy validation",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Validation summary, diagnostics, and topology overlay"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/simulations": {
+      "get": {
+        "tags": [
+          "Simulation & Validation"
+        ],
+        "summary": "List simulation runs for a project",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated simulation runs"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Simulation & Validation"
+        ],
+        "summary": "Initialize and optionally auto-step a deterministic AE2 simulation run",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSimulationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created simulation run"
+          }
+        }
+      }
+    },
+    "/api/v1/simulations/{simulationId}": {
+      "get": {
+        "tags": [
+          "Simulation & Validation"
+        ],
+        "summary": "Get simulation run state and overlay",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "simulationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Simulation run"
+          }
+        }
+      }
+    },
+    "/api/v1/simulations/{simulationId}/step": {
+      "post": {
+        "tags": [
+          "Simulation & Validation"
+        ],
+        "summary": "Advance simulation deterministically by 1 or more ticks",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "simulationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Step result with emitted tick events and updated state"
+          }
+        }
+      }
+    },
+    "/api/v1/simulations/{simulationId}/pause": {
+      "post": {
+        "tags": [
+          "Simulation & Validation"
+        ],
+        "summary": "Pause a running simulation",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "simulationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paused simulation"
+          }
+        }
+      }
+    },
+    "/api/v1/simulations/{simulationId}/resume": {
+      "post": {
+        "tags": [
+          "Simulation & Validation"
+        ],
+        "summary": "Resume a paused simulation",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "simulationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resumed simulation"
+          }
+        }
+      }
+    },
+    "/api/v1/simulations/{simulationId}/reset": {
+      "post": {
+        "tags": [
+          "Simulation & Validation"
+        ],
+        "summary": "Reset simulation back to initial Tick 0 snapshot",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "simulationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reset simulation"
+          }
+        }
+      }
+    },
+    "/api/v1/simulations/{simulationId}/events": {
+      "get": {
+        "tags": [
+          "Simulation & Validation"
+        ],
+        "summary": "List chronological simulation events",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "simulationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated simulation events"
+          }
+        }
+      }
+    },
+    "/api/v1/simulations/{simulationId}/diagnostics": {
+      "get": {
+        "tags": [
+          "Simulation & Validation"
+        ],
+        "summary": "List actionable diagnostics for a simulation run",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "simulationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Diagnostics array"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/export/json": {
+      "get": {
+        "tags": [
+          "Blueprint Export"
+        ],
+        "summary": "Export project as a versioned JSON blueprint",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON blueprint"
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/export/build-sheet": {
+      "get": {
+        "tags": [
+          "Blueprint Export"
+        ],
+        "summary": "Export human-readable Markdown build sheet with BOM and layer guide",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Markdown build sheet"
+          }
+        }
+      }
+    }
+  }
+}

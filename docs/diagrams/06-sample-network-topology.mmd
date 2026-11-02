@@ -1,0 +1,53 @@
+flowchart LR
+    subgraph PowerFeed["⚡ External Power & Buffer (0 Channels)"]
+        FEGen["External FE Producer<br/>800 FE/t"]
+        Acceptor["ae2:energy_acceptor<br/>(-1, 0, 0) • 0 ch<br/>Converts 800 FE/t → 400 AE/t"]
+        ECell["ae2:energy_cell<br/>(-1, 1, 0) • 0 ch<br/>200,000 AE Buffer (100%)"]
+        FEGen -->|"800 FE/t"| Acceptor
+        Acceptor --> ECell
+    end
+
+    Controller["🟪 ae2:controller<br/>(0, 0, 0) • Valid 1x1x1<br/>8,000 AE Buffer • -6 AE/t<br/>Capacity: 32 ch / face"]
+    ECell -->|"Power Grid"| Controller
+
+    DenseTrunk1["🟦 ae2:dense_smart_cable<br/>(0, 0, 1) • color: fluix<br/>Load: 5 / 32 ch"]
+    DenseTrunk2["🟦 ae2:dense_smart_cable<br/>(0, 0, 2) • color: fluix<br/>Load: 5 / 32 ch"]
+
+    Controller -->|"South Face (5 / 32 ch)"| DenseTrunk1
+    DenseTrunk1 --> DenseTrunk2
+
+    subgraph StorageBranch["📦 Branch A — Blue Smart Cable (2 / 8 ch)"]
+        BlueCable["ae2:smart_cable<br/>(1, 0, 2) • color: blue<br/>Load: 2 / 8 ch"]
+        Drive["ae2:drive<br/>(2, 0, 2) • Uses 1 ch<br/>Priority: 10<br/>Cells: 4k (Ingots), 16k (Bulk)"]
+        CraftTerm["ae2:crafting_terminal<br/>(1, 1, 2) • Uses 1 ch<br/>Player Access & Job Submit"]
+        BlueCable -->|"1 ch"| Drive
+        BlueCable -->|"1 ch"| CraftTerm
+    end
+
+    subgraph CraftingBranch["🛠️ Branch B — Purple Smart Cable (3 / 8 ch, Anchored from Blue)"]
+        PurpleCable["ae2:smart_cable<br/>(-1, 0, 2) • color: purple<br/>Load: 3 / 8 ch"]
+
+        subgraph CraftingCPU["Crafting CPU Multiblock (Uses 1 ch Total)"]
+            CPU4k["ae2:crafting_storage_4k<br/>(4,096 Bytes)"]
+            CPUCoProc["ae2:crafting_co_processor<br/>(+1 Parallel Batch / Tick)"]
+            CPUMon["ae2:crafting_monitor<br/>(Live Job Display)"]
+            CPU4k --- CPUCoProc --- CPUMon
+        end
+
+        PP1["ae2:pattern_provider<br/>(-1, 1, 2) • Uses 1 ch<br/>Variant: normal<br/>Pattern: 1 Oak Log → 4 Planks"]
+        MA["ae2:molecular_assembler<br/>(-1, 2, 2) • Uses 0 ch<br/>Executes Crafting & Auto-Returns"]
+
+        PP2["ae2:pattern_provider<br/>(-2, 0, 2) • Uses 1 ch<br/>Variant: directional (push=west)<br/>Pattern: 1 Raw Iron → 1 Iron Ingot"]
+        ExtMach["melab:external_machine<br/>(-3, 0, 2) • Uses 0 ch<br/>Approximated Smelter (8 ticks, auto_return)"]
+
+        PurpleCable -->|"1 ch (Multiblock)"| CPU4k
+        PurpleCable -->|"1 ch"| PP1
+        PurpleCable -->|"1 ch"| PP2
+        PP1 -->|"Push Crafting Inputs"| MA
+        MA -->|"Auto-Return 4x Planks"| PP1
+        PP2 -->|"Push via West Face"| ExtMach
+        ExtMach -->|"Auto-Return Iron Ingot"| PP2
+    end
+
+    DenseTrunk2 -->|"East (2 / 8 ch)"| BlueCable
+    DenseTrunk2 -->|"West (3 / 8 ch)"| PurpleCable

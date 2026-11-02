@@ -1,0 +1,38 @@
+flowchart TB
+    Browser["🌐 Client Browser"]
+    GHActions["⚙️ GitHub Actions CI/CD<br/>(.github/workflows/deploy-azure.yml)"]
+    GHCR["📦 GitHub Container Registry<br/>ghcr.io/&lt;owner&gt;/me-lab/{api,web}"]
+
+    subgraph AzureRG["☁️ Azure Resource Group (deployments/azure/main.bicep)"]
+        PIP["Public IP + DNS Label<br/>melab-*.&lt;region&gt;.cloudapp.azure.com"]
+        NSG["🛡️ Network Security Group<br/>Allow 443/tcp & 80/tcp (Internet)<br/>Allow 22/tcp (sshAllowedCidr only)"]
+
+        subgraph VNet["Virtual Network (10.20.0.0/16) / Subnet (10.20.1.0/24)"]
+            subgraph VM["🖥️ Azure Linux VM (Standard_B2s • Ubuntu 24.04 LTS • System-Assigned Managed Identity)"]
+                NginxHost["🔒 Host Nginx Reverse Proxy<br/>Let's Encrypt TLS 1.2/1.3 Termination<br/>HSTS, Rate Limiting & ACME HTTP-01"]
+
+                subgraph DockerCompose["🐳 Docker Compose (compose.prod.yaml — 127.0.0.1 loopback)"]
+                    WebCont["web Container (:8081)<br/>nginx-unprivileged:1.27-alpine<br/>Static React + R3F Bundle"]
+                    APICont["api Container (:8080)<br/>Alpine 3.21 • UID 10001:10001<br/>Pure-Go Binary (me-lab-api)"]
+                end
+
+                BackupTimer["⏲️ Systemd Timer / Cron (02:00 UTC)<br/>scripts/backup-sqlite.sh<br/>Online sqlite3 .backup + gzip + sha256sum"]
+            end
+        end
+
+        DataDisk[("💾 Azure Managed Data Disk<br/>32 GiB StandardSSD_LRS (LUN 0)<br/>Mounted at /mnt/melab-data<br/>/mnt/melab-data/me-lab.db (WAL)")]
+        BlobAcct[("🗄️ Azure Storage Account (Standard_LRS)<br/>Blob Container: sqlite-backups<br/>RBAC: Storage Blob Data Contributor")]
+    end
+
+    Browser -->|"HTTPS :443 / HTTP :80"| PIP
+    PIP --> NSG
+    NSG --> NginxHost
+    NginxHost -->|"Static SPA /"| WebCont
+    NginxHost -->|"/api/v1/*, /health, /ready, /docs"| APICont
+    APICont -->|"Bind Mount /mnt/melab-data"| DataDisk
+    BackupTimer -->|"Atomic WAL-safe .backup"| DataDisk
+    BackupTimer -->|"az storage blob upload<br/>--auth-mode login (Managed Identity)"| BlobAcct
+
+    GHActions -->|"1. Build & Push Images"| GHCR
+    GHActions -->|"2. OIDC Login + az vm run-command<br/>docker compose pull & up -d"| VM
+    VM -->|"Pulls immutable SHA tags"| GHCR
