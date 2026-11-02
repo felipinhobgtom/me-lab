@@ -3,7 +3,7 @@ flowchart TB
     GHActions["⚙️ GitHub Actions CI/CD<br/>(.github/workflows/deploy-azure.yml)"]
     GHCR["📦 GitHub Container Registry<br/>ghcr.io/&lt;owner&gt;/me-lab/{api,web}"]
 
-    subgraph AzureRG["☁️ Azure Resource Group (deployments/azure/main.bicep)"]
+    subgraph AzureRG["☁️ Azure Resource Group<br/>(subscription.bicep → main.bicep)"]
         PIP["Public IP + DNS Label<br/>melab-*.&lt;region&gt;.cloudapp.azure.com"]
         NSG["🛡️ Network Security Group<br/>Allow 443/tcp & 80/tcp (Internet)<br/>Allow 22/tcp (sshAllowedCidr only)"]
 

@@ -22,7 +22,10 @@ This operations guide covers provisioning, TLS setup, persistent SQLite disk man
 
 ### Deploy Resource Group & Bicep Template
 
+`deployments/azure/subscription.bicep` is the subscription-scope ARM entry point. It creates `rg-melab-prod` when absent and invokes `deployments/azure/main.bicep` at Resource Group scope. The GitHub Actions workflow uses the same ARM flow through `azure/arm-deploy@v2`; this command is the equivalent manual bootstrap:
+
 ```bash
+export AZURE_SUBSCRIPTION_ID="dc2c9f51-6f1f-49ec-98ee-92134af867f5"
 export AZURE_RG="rg-melab-prod"
 export AZURE_LOCATION="eastus2"
 export DNS_LABEL="melab-ae2-prod"
@@ -31,18 +34,15 @@ export GHCR_USERNAME="your-github-user"
 export GHCR_PULL_TOKEN="read-only-ghcr-token"
 export JWT_SECRET="$(openssl rand -hex 32)"
 
-# 1. Create resource group
-az group create \
-  --name "$AZURE_RG" \
-  --location "$AZURE_LOCATION"
-
-az deployment group create \
-  --resource-group "$AZURE_RG" \
+az deployment sub create \
+  --subscription "$AZURE_SUBSCRIPTION_ID" \
+  --location "$AZURE_LOCATION" \
   --name "me-lab-bootstrap" \
-  --template-file deployments/azure/main.bicep \
+  --template-file deployments/azure/subscription.bicep \
   --parameters \
-    environmentName="prod" \
+    resourceGroupName="$AZURE_RG" \
     location="$AZURE_LOCATION" \
+    environmentName="prod" \
     vmSize="Standard_B2s" \
     adminUsername="azureuser" \
     sshPublicKey="$(cat ~/.ssh/id_ed25519.pub)" \
@@ -55,13 +55,15 @@ az deployment group create \
     jwtSecret="$JWT_SECRET" \
     corsAllowedOrigins="https://${DNS_LABEL}.${AZURE_LOCATION}.cloudapp.azure.com"
 
-# 3. Inspect deployment outputs (FQDN, public IP, storage account name)
-az deployment group show \
-  --resource-group "$AZURE_RG" \
+# Inspect Resource Group, VM, FQDN and storage outputs
+az deployment sub show \
+  --subscription "$AZURE_SUBSCRIPTION_ID" \
   --name "me-lab-bootstrap" \
   --query properties.outputs \
   --output table
 ```
+
+The subscription must have quota for the selected VM size and public IP. No application resources are created by `az login` alone.
 
 ---
 
@@ -100,12 +102,12 @@ Because `/mnt/melab-data` resides on an independent Azure Managed Disk with `cac
 
 ## 5. GitHub Actions ARM Deployment & TLS Bootstrap
 
-The production release path is ARM/Bicep-based. The `Deploy to Azure` workflow runs only for tags matching `v*.*.*` (or manual dispatch):
+The production release path is ARM/Bicep-based. The `Deploy to Azure` workflow runs on every repository push (and supports manual dispatch):
 
 1. Builds and pushes immutable `api` and `web` images to GHCR, tagged with `github.sha`.
 2. Logs in to Azure through OIDC.
-3. Runs `azure/arm-deploy@v2` against `deployments/azure/main.bicep`.
-4. ARM provisions or updates the VM, managed disk, storage account, RBAC assignment, and the VM Custom Script extension.
+3. Runs `azure/arm-deploy@v2` at subscription scope against `deployments/azure/subscription.bicep`.
+4. The subscription template creates or updates the Resource Group, then invokes `deployments/azure/main.bicep` for the VM, managed disk, storage account, RBAC assignment, and VM Custom Script extension.
 5. The extension waits for Docker, writes the production Compose file and first-run `.env`, logs in to GHCR using the read-only pull token, and runs `docker compose pull` / `up -d` using the immutable SHA tag.
 6. The workflow checks `PUBLIC_BASE_URL/ready` over HTTPS.
 
@@ -113,7 +115,7 @@ Configure these GitHub **environment variables** in the `production` environment
 
 | Variable | Purpose |
 | --- | --- |
-| `AZURE_RESOURCE_GROUP` | Existing resource group targeted by ARM |
+| `AZURE_RESOURCE_GROUP` | Resource Group name; defaults to `rg-melab-prod` and is created by ARM if absent |
 | `AZURE_LOCATION` | Azure region, for example `eastus2` |
 | `AZURE_VM_SIZE` | Usually `Standard_B2s` |
 | `AZURE_ADMIN_USERNAME` | VM SSH administrator |
@@ -142,7 +144,7 @@ sudo nginx -t && sudo systemctl reload nginx
 curl -fsS "https://<YOUR_FQDN>/ready"
 ```
 
-After this bootstrap, tagged releases are fully applied through ARM; no `az vm run-command`, SSH deployment, or repository clone is used by the release workflow.
+After this bootstrap, every subsequent push is applied through ARM; no `az vm run-command`, SSH deployment, or repository clone is used by the release workflow.
 
 ---
 

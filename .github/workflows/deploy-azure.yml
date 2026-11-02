@@ -2,9 +2,11 @@ name: Deploy to Azure
 
 on:
   push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
+
+concurrency:
+  group: me-lab-azure-deploy
+  cancel-in-progress: true
 
 permissions:
   id-token: write # Required for Azure OIDC federated authentication
@@ -18,6 +20,35 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve deployment defaults
+        id: config
+        env:
+          RESOURCE_GROUP_OVERRIDE: ${{ vars.AZURE_RESOURCE_GROUP }}
+          LOCATION_OVERRIDE: ${{ vars.AZURE_LOCATION }}
+          VM_SIZE_OVERRIDE: ${{ vars.AZURE_VM_SIZE }}
+          ADMIN_USERNAME_OVERRIDE: ${{ vars.AZURE_ADMIN_USERNAME }}
+          SSH_CIDR_OVERRIDE: ${{ vars.AZURE_SSH_ALLOWED_CIDR }}
+          DNS_LABEL_OVERRIDE: ${{ vars.AZURE_DNS_LABEL_PREFIX }}
+          PUBLIC_URL_OVERRIDE: ${{ vars.PUBLIC_BASE_URL }}
+        run: |
+          set -euo pipefail
+          resource_group="${RESOURCE_GROUP_OVERRIDE:-rg-melab-prod}"
+          location="${LOCATION_OVERRIDE:-eastus2}"
+          vm_size="${VM_SIZE_OVERRIDE:-Standard_B2s}"
+          admin_username="${ADMIN_USERNAME_OVERRIDE:-azureuser}"
+          ssh_cidr="${SSH_CIDR_OVERRIDE:?AZURE_SSH_ALLOWED_CIDR must be configured}"
+          dns_label="${DNS_LABEL_OVERRIDE:-melab-ae2-prod}"
+          public_url="${PUBLIC_URL_OVERRIDE:-https://${dns_label}.${location}.cloudapp.azure.com}"
+          {
+            echo "resource_group=$resource_group"
+            echo "location=$location"
+            echo "vm_size=$vm_size"
+            echo "admin_username=$admin_username"
+            echo "ssh_cidr=$ssh_cidr"
+            echo "dns_label=$dns_label"
+            echo "public_url=$public_url"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -53,33 +84,37 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy infrastructure and application through ARM/Bicep
+      - name: Deploy Resource Group and application through ARM/Bicep
         uses: azure/arm-deploy@v2
         with:
-          resourceGroupName: ${{ vars.AZURE_RESOURCE_GROUP }}
-          template: deployments/azure/main.bicep
+          scope: subscription
+          subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          region: ${{ steps.config.outputs.location }}
+          template: deployments/azure/subscription.bicep
           deploymentName: me-lab-${{ github.run_id }}
           deploymentMode: Incremental
           parameters: >
+            resourceGroupName=${{ steps.config.outputs.resource_group }}
+            location=${{ steps.config.outputs.location }}
             environmentName=prod
-            location=${{ vars.AZURE_LOCATION }}
-            vmSize=${{ vars.AZURE_VM_SIZE }}
-            adminUsername=${{ vars.AZURE_ADMIN_USERNAME }}
+            vmSize=${{ steps.config.outputs.vm_size }}
+            adminUsername=${{ steps.config.outputs.admin_username }}
             sshPublicKey="${{ secrets.AZURE_SSH_PUBLIC_KEY }}"
-            sshAllowedCidr=${{ vars.AZURE_SSH_ALLOWED_CIDR }}
-            dnsLabelPrefix=${{ vars.AZURE_DNS_LABEL_PREFIX }}
+            sshAllowedCidr=${{ steps.config.outputs.ssh_cidr }}
+            dnsLabelPrefix=${{ steps.config.outputs.dns_label }}
             appImageTag=${{ github.sha }}
             githubRepository=${{ github.repository }}
             ghcrUsername=${{ github.actor }}
             ghcrPullToken="${{ secrets.GHCR_PULL_TOKEN }}"
             jwtSecret="${{ secrets.AZURE_JWT_SECRET }}"
-            corsAllowedOrigins=${{ vars.PUBLIC_BASE_URL }}
+            corsAllowedOrigins=${{ steps.config.outputs.public_url }}
 
       - name: Post-deployment HTTPS health & readiness check
         run: |
           for attempt in $(seq 1 12); do
-            if curl -fsS "${{ vars.PUBLIC_BASE_URL }}/ready" | jq -e '.status == "ok"'; then
-              echo "Deployment verified healthy at ${{ vars.PUBLIC_BASE_URL }}"
+            echo "Readiness check attempt ${attempt}/12"
+            if curl -fsS "${{ steps.config.outputs.public_url }}/ready" | jq -e '.status == "ok"'; then
+              echo "Deployment verified healthy at ${{ steps.config.outputs.public_url }}"
               exit 0
             fi
             sleep 5
