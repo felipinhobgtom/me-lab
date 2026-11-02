@@ -1,0 +1,56 @@
+# Go binaries & test outputs
+/me-lab
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# SQLite databases — NEVER commit database files
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+/data/
+
+# Secrets & local environment — NEVER commit credentials
+.env
+.env.*
+!.env.example
+*credentials*.json
+*.pem
+*.key
+
+# Frontend dependencies & build output
+web/node_modules/
+web/dist/
+web/.vite/
+web/coverage/
+npm-debug.log*
+
+# Nix & devenv local state
+.devenv*
+devenv.local.nix
+devenv.local.yaml
+.direnv/
+result
+result-*
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

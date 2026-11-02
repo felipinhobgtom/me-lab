@@ -1,0 +1,74 @@
+name: Deploy to Azure
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  id-token: write # Required for Azure OIDC federated authentication
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    name: Build, Push & Deploy to Azure VM
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/api:latest
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./web/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/web:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/web:latest
+
+      - name: Azure Login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Docker Compose release on Azure VM via Run Command
+        run: |
+          az vm run-command invoke \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_VM_NAME }}" \
+            --command-id RunShellScript \
+            --scripts "cd /opt/me-lab && IMAGE_TAG=${{ github.sha }} docker compose -f deployments/azure/compose.prod.yaml pull && IMAGE_TAG=${{ github.sha }} docker compose -f deployments/azure/compose.prod.yaml up -d --remove-orphans"
+
+      - name: Post-deployment HTTPS health & readiness check
+        run: |
+          for attempt in $(seq 1 12); do
+            if curl -fsS "${{ vars.PUBLIC_BASE_URL }}/ready" | jq -e '.status == "ok"'; then
+              echo "Deployment verified healthy at ${{ vars.PUBLIC_BASE_URL }}"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Post-deployment readiness check failed"
+          exit 1
