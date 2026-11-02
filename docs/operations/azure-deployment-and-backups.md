@@ -27,28 +27,38 @@ export AZURE_RG="rg-melab-prod"
 export AZURE_LOCATION="eastus2"
 export DNS_LABEL="melab-ae2-prod"
 export MY_SSH_CIDR="$(curl -fsS https://checkip.amazonaws.com | tr -d '\n')/32"
+export GHCR_USERNAME="your-github-user"
+export GHCR_PULL_TOKEN="read-only-ghcr-token"
+export JWT_SECRET="$(openssl rand -hex 32)"
 
 # 1. Create resource group
 az group create \
   --name "$AZURE_RG" \
   --location "$AZURE_LOCATION"
 
-# 2. Validate & deploy Bicep infrastructure
 az deployment group create \
   --resource-group "$AZURE_RG" \
+  --name "me-lab-bootstrap" \
   --template-file deployments/azure/main.bicep \
   --parameters \
     environmentName="prod" \
+    location="$AZURE_LOCATION" \
     vmSize="Standard_B2s" \
     adminUsername="azureuser" \
     sshPublicKey="$(cat ~/.ssh/id_ed25519.pub)" \
     sshAllowedCidr="$MY_SSH_CIDR" \
-    dnsLabelPrefix="$DNS_LABEL"
+    dnsLabelPrefix="$DNS_LABEL" \
+    appImageTag="latest" \
+    githubRepository="felipinhobgtom/me-lab" \
+    ghcrUsername="$GHCR_USERNAME" \
+    ghcrPullToken="$GHCR_PULL_TOKEN" \
+    jwtSecret="$JWT_SECRET" \
+    corsAllowedOrigins="https://${DNS_LABEL}.${AZURE_LOCATION}.cloudapp.azure.com"
 
 # 3. Inspect deployment outputs (FQDN, public IP, storage account name)
 az deployment group show \
   --resource-group "$AZURE_RG" \
-  --name main \
+  --name "me-lab-bootstrap" \
   --query properties.outputs \
   --output table
 ```
@@ -88,64 +98,51 @@ Because `/mnt/melab-data` resides on an independent Azure Managed Disk with `cac
 
 ---
 
-## 5. Let's Encrypt TLS & Application Bootstrap
+## 5. GitHub Actions ARM Deployment & TLS Bootstrap
 
-SSH into the provisioned VM and configure `/opt/me-lab/.env` plus Let's Encrypt certificates:
+The production release path is ARM/Bicep-based. The `Deploy to Azure` workflow runs only for tags matching `v*.*.*` (or manual dispatch):
+
+1. Builds and pushes immutable `api` and `web` images to GHCR, tagged with `github.sha`.
+2. Logs in to Azure through OIDC.
+3. Runs `azure/arm-deploy@v2` against `deployments/azure/main.bicep`.
+4. ARM provisions or updates the VM, managed disk, storage account, RBAC assignment, and the VM Custom Script extension.
+5. The extension waits for Docker, writes the production Compose file and first-run `.env`, logs in to GHCR using the read-only pull token, and runs `docker compose pull` / `up -d` using the immutable SHA tag.
+6. The workflow checks `PUBLIC_BASE_URL/ready` over HTTPS.
+
+Configure these GitHub **environment variables** in the `production` environment:
+
+| Variable | Purpose |
+| --- | --- |
+| `AZURE_RESOURCE_GROUP` | Existing resource group targeted by ARM |
+| `AZURE_LOCATION` | Azure region, for example `eastus2` |
+| `AZURE_VM_SIZE` | Usually `Standard_B2s` |
+| `AZURE_ADMIN_USERNAME` | VM SSH administrator |
+| `AZURE_SSH_ALLOWED_CIDR` | Operator IP/CIDR allowed on port 22 |
+| `AZURE_DNS_LABEL_PREFIX` | Public Azure DNS label |
+| `PUBLIC_BASE_URL` | Public HTTPS URL used by the readiness check |
+
+Configure these **secrets**:
+
+`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_SSH_PUBLIC_KEY`, `AZURE_JWT_SECRET`, and `GHCR_PULL_TOKEN` (read-only package pull permission).
+
+The first ARM deployment also runs `cloud-init` to install Docker, Nginx, Certbot, Azure CLI, the managed-disk mount, and the backup timer. TLS certificate issuance remains a one-time host bootstrap because Let's Encrypt requires the final DNS name and an operator email:
 
 ```bash
 export FQDN="${DNS_LABEL}.${AZURE_LOCATION}.cloudapp.azure.com"
-export STORAGE_ACCT="$(az deployment group show -g "$AZURE_RG" -n main --query properties.outputs.storageAccountName.value -o tsv)"
-
 ssh "azureuser@${FQDN}"
-```
-
-On the VM:
-
-```bash
-# 1. Clone repository configuration & scripts into /opt/me-lab
-sudo git clone https://github.com/felipinho/me-lab.git /opt/me-lab
-cd /opt/me-lab
-
-# 2. Create production .env (0600 root-owned)
-sudo tee /opt/me-lab/.env >/dev/null <<EOF
-PORT=8080
-DATABASE_URL=/mnt/melab-data/me-lab.db
-JWT_SECRET=$(openssl rand -hex 32)
-JWT_EXPIRY_HOURS=24
-LOG_LEVEL=info
-CORS_ALLOWED_ORIGINS=https://<YOUR_FQDN>
-GITHUB_REPOSITORY=felipinho/me-lab
-AZURE_STORAGE_ACCOUNT=<YOUR_STORAGE_ACCOUNT>
-AZURE_STORAGE_CONTAINER=sqlite-backups
-AZURE_USE_MANAGED_IDENTITY=true
-RETENTION_DAYS=30
-EOF
-sudo chmod 0600 /opt/me-lab/.env
-
-# 3. Install Nginx site config & request Let's Encrypt certificate
 sudo mkdir -p /var/www/certbot
-sudo sed "s/melab.example.com/<YOUR_FQDN>/g" /opt/me-lab/deployments/azure/nginx-tls.conf \
+sudo sed "s/melab.example.com/<YOUR_FQDN>/g" \
+  /opt/me-lab/deployments/azure/nginx-tls.conf \
   | sudo tee /etc/nginx/sites-available/me-lab.conf >/dev/null
 sudo rm -f /etc/nginx/sites-enabled/default
-
-# Obtain initial certificate via Certbot standalone/webroot, then enable full TLS vhost
-sudo certbot certonly --nginx -d "<YOUR_FQDN>" --non-interactive --agree-tos -m "ops@example.com"
+sudo certbot certonly --nginx --non-interactive --agree-tos \
+  -m "ops@example.com" -d "<YOUR_FQDN>"
 sudo ln -sf /etc/nginx/sites-available/me-lab.conf /etc/nginx/sites-enabled/me-lab.conf
 sudo nginx -t && sudo systemctl reload nginx
-
-# 4. Verify automatic certificate renewal timer
-sudo systemctl status certbot.timer --no-pager
-
-# 5. Start production containers
-cd /opt/me-lab
-sudo docker compose -f deployments/azure/compose.prod.yaml pull
-sudo docker compose -f deployments/azure/compose.prod.yaml up -d
-
-# 6. Verify end-to-end HTTPS readiness
 curl -fsS "https://<YOUR_FQDN>/ready"
 ```
 
-Subsequent tagged releases (`v*.*.*`) deploy automatically through `.github/workflows/deploy-azure.yml` using Azure OIDC federated credentials (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`) and `az vm run-command invoke`.
+After this bootstrap, tagged releases are fully applied through ARM; no `az vm run-command`, SSH deployment, or repository clone is used by the release workflow.
 
 ---
 

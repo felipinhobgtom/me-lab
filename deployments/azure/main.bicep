@@ -27,6 +27,27 @@ param dnsLabelPrefix string = 'melab-${uniqueString(resourceGroup().id)}'
 @maxValue(1024)
 param dataDiskSizeGiB int = 32
 
+@description('Immutable GHCR image tag deployed by the ARM VM extension.')
+@minLength(1)
+param appImageTag string = 'latest'
+
+@description('GitHub repository used to resolve the GHCR image names.')
+param githubRepository string = 'felipinhobgtom/me-lab'
+
+@description('GHCR username used by the VM to pull private images.')
+param ghcrUsername string = 'github-actions'
+
+@description('Read-only GHCR token for the VM image pull.')
+@secure()
+param ghcrPullToken string
+
+@description('Application JWT signing secret. Preserved in the VM .env after first deployment.')
+@secure()
+param jwtSecret string
+
+@description('Allowed browser origins for the API.')
+param corsAllowedOrigins string = 'https://${dnsLabelPrefix}.${location}.cloudapp.azure.com'
+
 var nameSuffix = '${environmentName}-${take(uniqueString(resourceGroup().id), 6)}'
 var vmName = 'vm-melab-${environmentName}'
 var nsgName = 'nsg-melab-${nameSuffix}'
@@ -37,6 +58,44 @@ var nicName = 'nic-melab-${nameSuffix}'
 var dataDiskName = 'disk-melab-sqlite-${nameSuffix}'
 var storageAccountName = take(toLower('melab${uniqueString(resourceGroup().id, environmentName)}'), 24)
 var backupContainerName = 'sqlite-backups'
+
+var composeFileBase64 = base64(loadTextContent('compose.prod.yaml'))
+var appDeployCommand = format('''
+/bin/bash -c "
+set -euo pipefail
+for attempt in $(seq 1 90); do
+  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+    break
+  fi
+  sleep 10
+done
+command -v docker
+mkdir -p /opt/me-lab/deployments/azure
+echo "{0}" | base64 -d > /opt/me-lab/deployments/azure/compose.prod.yaml
+if [ ! -s /opt/me-lab/.env ]; then
+  umask 077
+  cat > /opt/me-lab/.env <<ENV
+PORT=8080
+DATABASE_URL=/mnt/melab-data/me-lab.db
+JWT_SECRET={1}
+JWT_EXPIRY_HOURS=24
+LOG_LEVEL=info
+CORS_ALLOWED_ORIGINS={2}
+GITHUB_REPOSITORY={3}
+AZURE_STORAGE_ACCOUNT={4}
+AZURE_STORAGE_CONTAINER={5}
+AZURE_USE_MANAGED_IDENTITY=true
+RETENTION_DAYS=30
+ENV
+  chmod 0600 /opt/me-lab/.env
+fi
+echo "{6}" | docker login ghcr.io --username "{7}" --password-stdin
+cd /opt/me-lab
+IMAGE_TAG="{8}" GITHUB_REPOSITORY="{3}" docker compose -f deployments/azure/compose.prod.yaml pull
+IMAGE_TAG="{8}" GITHUB_REPOSITORY="{3}" docker compose -f deployments/azure/compose.prod.yaml up -d --remove-orphans
+docker logout ghcr.io >/dev/null 2>&1 || true
+"
+''', composeFileBase64, jwtSecret, corsAllowedOrigins, githubRepository, storageAccountName, backupContainerName, ghcrPullToken, ghcrUsername, appImageTag)
 
 // Azure built-in role: Storage Blob Data Contributor
 var storageBlobDataContributorRoleId = subscriptionResourceId(
@@ -232,6 +291,23 @@ resource vm 'Microsoft.Compute/virtualMachines@2024-03-01' = {
           }
         }
       ]
+    }
+  }
+}
+
+resource appDeploy 'Microsoft.Compute/virtualMachines/extensions@2024-03-01' = {
+  name: 'app-deploy'
+  parent: vm
+  location: location
+  properties: {
+    publisher: 'Microsoft.Azure.Extensions'
+    type: 'CustomScript'
+    typeHandlerVersion: '2.1'
+    autoUpgradeMinorVersion: true
+    forceUpdateTag: appImageTag
+    settings: {}
+    protectedSettings: {
+      commandToExecute: appDeployCommand
     }
   }
 }

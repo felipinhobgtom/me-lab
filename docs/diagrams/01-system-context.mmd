@@ -13,7 +13,7 @@ flowchart TB
 
     User -->|"Designs 3D ME networks, configures cells & patterns,<br/>steps tick simulations, exports build sheets"| Browser
     Browser -->|"HTTPS (TLS 1.2/1.3) JSON REST API<br/>/api/v1/* • JWT Bearer Auth"| MELab
-    GitHubCI -->|"Pushes api & web images to GHCR;<br/>triggers az vm run-command via OIDC"| MELab
+    GitHubCI -->|"Pushes api & web images to GHCR;<br/>deploys ARM/Bicep VM extension via OIDC"| MELab
     MELab -->|"Daily online sqlite3 .backup + gzip<br/>via System-Assigned Managed Identity RBAC"| BlobStorage
     MELab -.->|"Models versioned compatibility profile<br/>& cites mechanics documentation"| AE2Guide
     User -.->|"Reproduces exported Markdown<br/>Build Sheet in Minecraft"| AE2Guide

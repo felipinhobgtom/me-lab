@@ -34,5 +34,5 @@ flowchart TB
     BackupTimer -->|"az storage blob upload<br/>--auth-mode login (Managed Identity)"| BlobAcct
 
     GHActions -->|"1. Build & Push Images"| GHCR
-    GHActions -->|"2. OIDC Login + az vm run-command<br/>docker compose pull & up -d"| VM
+    GHActions -->|"2. OIDC Login + ARM/Bicep deployment<br/>VM Custom Script pulls immutable SHA tags"| VM
     VM -->|"Pulls immutable SHA tags"| GHCR

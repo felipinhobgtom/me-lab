@@ -53,13 +53,27 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy Docker Compose release on Azure VM via Run Command
-        run: |
-          az vm run-command invoke \
-            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --name "${{ vars.AZURE_VM_NAME }}" \
-            --command-id RunShellScript \
-            --scripts "cd /opt/me-lab && IMAGE_TAG=${{ github.sha }} docker compose -f deployments/azure/compose.prod.yaml pull && IMAGE_TAG=${{ github.sha }} docker compose -f deployments/azure/compose.prod.yaml up -d --remove-orphans"
+      - name: Deploy infrastructure and application through ARM/Bicep
+        uses: azure/arm-deploy@v2
+        with:
+          resourceGroupName: ${{ vars.AZURE_RESOURCE_GROUP }}
+          template: deployments/azure/main.bicep
+          deploymentName: me-lab-${{ github.run_id }}
+          deploymentMode: Incremental
+          parameters: >
+            environmentName=prod
+            location=${{ vars.AZURE_LOCATION }}
+            vmSize=${{ vars.AZURE_VM_SIZE }}
+            adminUsername=${{ vars.AZURE_ADMIN_USERNAME }}
+            sshPublicKey="${{ secrets.AZURE_SSH_PUBLIC_KEY }}"
+            sshAllowedCidr=${{ vars.AZURE_SSH_ALLOWED_CIDR }}
+            dnsLabelPrefix=${{ vars.AZURE_DNS_LABEL_PREFIX }}
+            appImageTag=${{ github.sha }}
+            githubRepository=${{ github.repository }}
+            ghcrUsername=${{ github.actor }}
+            ghcrPullToken="${{ secrets.GHCR_PULL_TOKEN }}"
+            jwtSecret="${{ secrets.AZURE_JWT_SECRET }}"
+            corsAllowedOrigins=${{ vars.PUBLIC_BASE_URL }}
 
       - name: Post-deployment HTTPS health & readiness check
         run: |

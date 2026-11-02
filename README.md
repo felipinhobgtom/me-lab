@@ -120,7 +120,7 @@ flowchart TB
         SQLite --- Disk["Persistent Mount: Azure Managed Disk (/mnt/melab-data)"]
     end
     SQLite -->|"scripts/backup-sqlite.sh (.backup + gzip + sha256)"| Blob["Azure Blob Storage (sqlite-backups)"]
-    GHA["GitHub Actions (OIDC)"] -->|"Build GHCR images & az vm run-command"| VM
+    GHA["GitHub Actions (OIDC)"] -->|"Build GHCR images & ARM/Bicep VM extension deployment"| VM
 ```
 
 ---
@@ -209,7 +209,7 @@ make test-frontend
 
 Full Bicep infrastructure-as-code, cloud-init, production Compose, Nginx TLS configuration, and backup/restore runbooks are documented in [`docs/operations/azure-deployment-and-backups.md`](docs/operations/azure-deployment-and-backups.md).
 
-- **Hosted URL Configuration:** Set `PUBLIC_BASE_URL` (e.g., `https://<dnsLabelPrefix>.<region>.cloudapp.azure.com`) in GitHub Repository Variables for `.github/workflows/deploy-azure.yml` post-deployment `/ready` verification.
+- **GitHub Actions ARM configuration:** Create repository/environment variables `AZURE_RESOURCE_GROUP`, `AZURE_LOCATION`, `AZURE_VM_SIZE`, `AZURE_ADMIN_USERNAME`, `AZURE_SSH_ALLOWED_CIDR`, `AZURE_DNS_LABEL_PREFIX`, and `PUBLIC_BASE_URL`; create secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_SSH_PUBLIC_KEY`, `AZURE_JWT_SECRET`, and a read-only `GHCR_PULL_TOKEN`. Tagged releases (`v*.*.*`) build immutable SHA-tagged images and deploy `deployments/azure/main.bicep` through `azure/arm-deploy@v2`.
 - **Provisioned Resources & Estimated Student Cost (`eastus2` / `brazilsouth`):**
   - `Standard_B2s` Linux VM: ~$30–35/month if running 24/7 (~$0.04/hour while active; **$0 compute when deallocated**).
   - 32 GiB `StandardSSD_LRS` Managed Data Disk (`/mnt/melab-data`): ~$2.40/month.
