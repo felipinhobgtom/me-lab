@@ -1,0 +1,107 @@
+[
+  {
+    "id": "ae2:drive",
+    "name": "ME Drive",
+    "category": "storage",
+    "behavior_key": "drive",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/drive",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 2,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Holds up to 10 ME Item Storage Cells (1k-256k) with priority routing and cell partitioning.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "config_schema": [
+        {
+          "key": "priority",
+          "label": "Storage Priority",
+          "type": "number",
+          "default": 0,
+          "description": "Higher-priority drives receive inserted items first."
+        },
+        {
+          "key": "cells",
+          "label": "Storage Cells",
+          "type": "drive_cells",
+          "description": "Configured ME storage cells (tier, partition filter, inverter, initial items)."
+        }
+      ],
+      "visual": {
+        "color": "#2b2d42",
+        "accent_color": "#06d6a0",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:terminal",
+    "name": "ME Terminal",
+    "category": "storage",
+    "behavior_key": "terminal",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/terminals",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Interactive panel providing view, insert, extract, and autocraft request access to ME storage.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#1e293b",
+        "accent_color": "#38bdf8",
+        "shape": "panel",
+        "size": [0.75, 0.75, 0.25]
+      }
+    }
+  },
+  {
+    "id": "ae2:crafting_terminal",
+    "name": "ME Crafting Terminal",
+    "category": "storage",
+    "behavior_key": "crafting_terminal",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/terminals#crafting-terminal",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "ME Terminal with integrated 3x3 crafting grid and autocrafting job request access.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#1e293b",
+        "accent_color": "#fbbf24",
+        "shape": "panel",
+        "size": [0.75, 0.75, 0.25]
+      }
+    }
+  }
+]

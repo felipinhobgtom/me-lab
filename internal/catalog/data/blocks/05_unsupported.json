@@ -1,0 +1,152 @@
+[
+  {
+    "id": "ae2:p2p_tunnel",
+    "name": "ME P2P Tunnel",
+    "category": "unsupported",
+    "behavior_key": "unsupported",
+    "fidelity": "unsupported",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/p2p_tunnels",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Post-MVP block: P2P carrier subnetworks are not simulated in MVP and emit UNSUPPORTED_MECHANIC.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#52525b",
+        "accent_color": "#ef4444",
+        "shape": "panel",
+        "size": [0.75, 0.75, 0.25]
+      }
+    }
+  },
+  {
+    "id": "ae2:storage_bus",
+    "name": "ME Storage Bus",
+    "category": "unsupported",
+    "behavior_key": "unsupported",
+    "fidelity": "unsupported",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/storage_bus",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Post-MVP block: External inventory subnetwork mounting is not simulated in MVP and emits UNSUPPORTED_MECHANIC.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#52525b",
+        "accent_color": "#ef4444",
+        "shape": "panel",
+        "size": [0.75, 0.75, 0.25]
+      }
+    }
+  },
+  {
+    "id": "ae2:import_bus",
+    "name": "ME Import Bus",
+    "category": "unsupported",
+    "behavior_key": "unsupported",
+    "fidelity": "unsupported",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/import_bus",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Post-MVP block: Continuous external inventory import is not simulated in MVP and emits UNSUPPORTED_MECHANIC.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#52525b",
+        "accent_color": "#ef4444",
+        "shape": "panel",
+        "size": [0.5, 0.5, 0.25]
+      }
+    }
+  },
+  {
+    "id": "ae2:export_bus",
+    "name": "ME Export Bus",
+    "category": "unsupported",
+    "behavior_key": "unsupported",
+    "fidelity": "unsupported",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/export_bus",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Post-MVP block: Continuous external inventory export is not simulated in MVP and emits UNSUPPORTED_MECHANIC.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#52525b",
+        "accent_color": "#ef4444",
+        "shape": "panel",
+        "size": [0.5, 0.5, 0.25]
+      }
+    }
+  },
+  {
+    "id": "ae2:quantum_ring",
+    "name": "ME Quantum Ring",
+    "category": "unsupported",
+    "behavior_key": "unsupported",
+    "fidelity": "unsupported",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/quantum_bridge",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 32,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 22,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": false,
+      "description": "Post-MVP block: Cross-dimensional Quantum Network Bridges are not simulated in MVP and emit UNSUPPORTED_MECHANIC.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#3f3f46",
+        "accent_color": "#ef4444",
+        "shape": "frame",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  }
+]

@@ -1,0 +1,39 @@
+{
+  "id": "ae2-1.21.1-default",
+  "name": "AE2 1.21.1 (Default Channels)",
+  "minecraft_version": "1.21.1",
+  "ae2_version": "19.2.x",
+  "channel_mode": "default",
+  "config": {
+    "normal_cable_channels": 8,
+    "dense_cable_channels": 32,
+    "controller_face_channels": 32,
+    "ad_hoc_channel_limit": 8,
+    "infinite_channels": false,
+    "controller_max_span": 7,
+    "controller_energy_per_block": 6,
+    "controller_energy_buffer": 8000,
+    "node_base_energy_buffer": 25,
+    "channel_hop_energy_cost": 0.0078125,
+    "fe_per_ae": 2,
+    "molecular_assembler_ticks": 4,
+    "molecular_assembler_active_ae": 20,
+    "external_machine_ticks": 8,
+    "items_per_byte": 8,
+    "max_cell_types": 63,
+    "cell_tiers": {
+      "1k": { "total_bytes": 1024, "max_types": 63, "bytes_per_type": 8 },
+      "4k": { "total_bytes": 4096, "max_types": 63, "bytes_per_type": 32 },
+      "16k": { "total_bytes": 16384, "max_types": 63, "bytes_per_type": 128 },
+      "64k": { "total_bytes": 65536, "max_types": 63, "bytes_per_type": 512 },
+      "256k": { "total_bytes": 262144, "max_types": 63, "bytes_per_type": 2048 }
+    },
+    "references": [
+      "https://guide.appliedenergistics.org/1.21.1/",
+      "https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/channels",
+      "https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/energy",
+      "https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/bytes-and-types",
+      "https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/autocrafting"
+    ]
+  }
+}

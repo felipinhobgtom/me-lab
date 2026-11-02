@@ -1,0 +1,411 @@
+[
+  {
+    "id": "ae2:pattern_provider",
+    "name": "ME Pattern Provider",
+    "category": "autocrafting",
+    "behavior_key": "pattern_provider",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/pattern_provider",
+    "metadata": {
+      "channel_usage": 1,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Holds encoded crafting and processing patterns, pushing ingredients to adjacent Molecular Assemblers or machines.",
+      "connection_rules": {
+        "connect_all_faces": true,
+        "disconnect_push_face": true
+      },
+      "config_schema": [
+        {
+          "key": "priority",
+          "label": "Crafting Priority",
+          "type": "number",
+          "default": 0,
+          "description": "Higher-priority providers are selected first when multiple patterns produce the same item."
+        },
+        {
+          "key": "variant",
+          "label": "Provider Variant",
+          "type": "select",
+          "default": "normal",
+          "options": ["normal", "directional"],
+          "description": "Directional pushes only on Facing and disconnects ME network on that push face."
+        },
+        {
+          "key": "blocking_mode",
+          "label": "Blocking Mode",
+          "type": "boolean",
+          "default": false,
+          "description": "Wait to push ingredients while target machine already holds active batch items."
+        },
+        {
+          "key": "lock_mode",
+          "label": "Lock Crafting Mode",
+          "type": "select",
+          "default": "none",
+          "options": ["none", "until_result_returned"],
+          "description": "When locked until result returned, blocks subsequent batches until primary output returns."
+        },
+        {
+          "key": "patterns",
+          "label": "Encoded Patterns",
+          "type": "patterns",
+          "description": "Crafting and processing patterns stored in this Pattern Provider."
+        }
+      ],
+      "visual": {
+        "color": "#312e81",
+        "accent_color": "#fbbf24",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:molecular_assembler",
+    "name": "Molecular Assembler",
+    "category": "autocrafting",
+    "behavior_key": "molecular_assembler",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/molecular_assembler",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "rotatable": false,
+      "description": "Executes crafting-table patterns pushed from adjacent Pattern Providers and auto-returns crafted outputs (0 channels used).",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#38bdf8",
+        "accent_color": "#e0f2fe",
+        "shape": "frame",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:crafting_unit",
+    "name": "Crafting Unit",
+    "category": "autocrafting",
+    "behavior_key": "crafting_unit",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/crafting_cpu_multiblock",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "crafting_storage_bytes": 0,
+      "is_co_processor": false,
+      "rotatable": false,
+      "description": "Structural filler block for rectangular-prism Crafting CPU multiblocks (each valid CPU uses 1 channel total).",
+      "connection_rules": {
+        "connect_all_faces": true,
+        "multiblock_group": "crafting_cpu"
+      },
+      "visual": {
+        "color": "#475569",
+        "accent_color": "#94a3b8",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:crafting_storage_1k",
+    "name": "1k Crafting Storage",
+    "category": "autocrafting",
+    "behavior_key": "crafting_storage",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/crafting_cpu_multiblock#crafting-storage",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "crafting_storage_bytes": 1024,
+      "is_co_processor": false,
+      "rotatable": false,
+      "description": "Adds 1,024 bytes of crafting plan and intermediate item buffer capacity to a Crafting CPU.",
+      "connection_rules": {
+        "connect_all_faces": true,
+        "multiblock_group": "crafting_cpu"
+      },
+      "visual": {
+        "color": "#065f46",
+        "accent_color": "#34d399",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:crafting_storage_4k",
+    "name": "4k Crafting Storage",
+    "category": "autocrafting",
+    "behavior_key": "crafting_storage",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/crafting_cpu_multiblock#crafting-storage",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "crafting_storage_bytes": 4096,
+      "is_co_processor": false,
+      "rotatable": false,
+      "description": "Adds 4,096 bytes of crafting plan and intermediate item buffer capacity to a Crafting CPU.",
+      "connection_rules": {
+        "connect_all_faces": true,
+        "multiblock_group": "crafting_cpu"
+      },
+      "visual": {
+        "color": "#047857",
+        "accent_color": "#6ee7b7",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:crafting_storage_16k",
+    "name": "16k Crafting Storage",
+    "category": "autocrafting",
+    "behavior_key": "crafting_storage",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/crafting_cpu_multiblock#crafting-storage",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "crafting_storage_bytes": 16384,
+      "is_co_processor": false,
+      "rotatable": false,
+      "description": "Adds 16,384 bytes of crafting plan and intermediate item buffer capacity to a Crafting CPU.",
+      "connection_rules": {
+        "connect_all_faces": true,
+        "multiblock_group": "crafting_cpu"
+      },
+      "visual": {
+        "color": "#0f766e",
+        "accent_color": "#2dd4bf",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:crafting_storage_64k",
+    "name": "64k Crafting Storage",
+    "category": "autocrafting",
+    "behavior_key": "crafting_storage",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/crafting_cpu_multiblock#crafting-storage",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "crafting_storage_bytes": 65536,
+      "is_co_processor": false,
+      "rotatable": false,
+      "description": "Adds 65,536 bytes of crafting plan and intermediate item buffer capacity to a Crafting CPU.",
+      "connection_rules": {
+        "connect_all_faces": true,
+        "multiblock_group": "crafting_cpu"
+      },
+      "visual": {
+        "color": "#0e7490",
+        "accent_color": "#22d3ee",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:crafting_storage_256k",
+    "name": "256k Crafting Storage",
+    "category": "autocrafting",
+    "behavior_key": "crafting_storage",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/crafting_cpu_multiblock#crafting-storage",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "crafting_storage_bytes": 262144,
+      "is_co_processor": false,
+      "rotatable": false,
+      "description": "Adds 262,144 bytes of crafting plan and intermediate item buffer capacity to a Crafting CPU.",
+      "connection_rules": {
+        "connect_all_faces": true,
+        "multiblock_group": "crafting_cpu"
+      },
+      "visual": {
+        "color": "#1d4ed8",
+        "accent_color": "#60a5fa",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:crafting_co_processor",
+    "name": "Crafting Co-Processing Unit",
+    "category": "autocrafting",
+    "behavior_key": "crafting_co_processor",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/crafting_cpu_multiblock#crafting-co-processing-unit",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 1,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "crafting_storage_bytes": 0,
+      "is_co_processor": true,
+      "rotatable": false,
+      "description": "Increases parallel pattern batch dispatch throughput of a Crafting CPU by +1 per tick.",
+      "connection_rules": {
+        "connect_all_faces": true,
+        "multiblock_group": "crafting_cpu"
+      },
+      "visual": {
+        "color": "#6d28d9",
+        "accent_color": "#c084fc",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:crafting_monitor",
+    "name": "Crafting Monitor",
+    "category": "autocrafting",
+    "behavior_key": "crafting_monitor",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/crafting_cpu_multiblock#crafting-monitor",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0.5,
+      "energy_capacity": 25,
+      "energy_generation": 0,
+      "crafting_storage_bytes": 0,
+      "is_co_processor": false,
+      "rotatable": true,
+      "description": "Displays the target item and remaining quantity of a Crafting CPU's active job.",
+      "connection_rules": {
+        "connect_all_faces": true,
+        "multiblock_group": "crafting_cpu"
+      },
+      "visual": {
+        "color": "#334155",
+        "accent_color": "#38bdf8",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "melab:external_machine",
+    "name": "External Processing Machine",
+    "category": "autocrafting",
+    "behavior_key": "external_machine",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/autocrafting#processing-patterns",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 0,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Approximated external furnace/crusher/inscriber accepting processing-pattern batches from an adjacent Pattern Provider.",
+      "connection_rules": {
+        "connect_all_faces": false
+      },
+      "config_schema": [
+        {
+          "key": "process_ticks",
+          "label": "Process Ticks",
+          "type": "number",
+          "default": 8,
+          "description": "Ticks required to complete one processing batch."
+        },
+        {
+          "key": "auto_return",
+          "label": "Auto-Return Outputs",
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically push completed outputs back into an adjacent Pattern Provider."
+        }
+      ],
+      "visual": {
+        "color": "#78350f",
+        "accent_color": "#f59e0b",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  }
+]

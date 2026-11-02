@@ -1,0 +1,180 @@
+[
+  {
+    "id": "ae2:controller",
+    "name": "ME Controller",
+    "category": "network",
+    "behavior_key": "controller",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/controller",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 32,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 6,
+      "energy_capacity": 8000,
+      "energy_generation": 0,
+      "rotatable": false,
+      "description": "Core routing multiblock providing 32 channels per exposed face (max 7x7x7 span, at most one opposite-neighbor axis per block).",
+      "connection_rules": {
+        "connect_all_faces": true,
+        "multiblock_group": "controller"
+      },
+      "visual": {
+        "color": "#232634",
+        "accent_color": "#b042ff",
+        "shape": "core",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:energy_acceptor",
+    "name": "Energy Acceptor",
+    "category": "energy",
+    "behavior_key": "energy_acceptor",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/energy_acceptor",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 25,
+      "energy_generation": 400,
+      "rotatable": false,
+      "description": "Converts external Forge Energy (FE) into AE power at 2 FE = 1 AE without consuming a channel.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "config_schema": [
+        {
+          "key": "fe_input_per_tick",
+          "label": "FE Input / Tick",
+          "type": "number",
+          "default": 800,
+          "description": "External Forge Energy supplied per tick (converted at 2 FE = 1 AE)."
+        }
+      ],
+      "visual": {
+        "color": "#3b4252",
+        "accent_color": "#5e81ac",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:energy_cell",
+    "name": "Energy Cell",
+    "category": "energy",
+    "behavior_key": "energy_cell",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/energy_cells",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 200000,
+      "energy_generation": 0,
+      "rotatable": false,
+      "description": "Stores up to 200,000 AE on the network to absorb crafting and brownout spikes.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "config_schema": [
+        {
+          "key": "initial_charge_pct",
+          "label": "Initial Charge (%)",
+          "type": "number",
+          "default": 100,
+          "description": "Initial stored energy percentage (0-100)."
+        }
+      ],
+      "visual": {
+        "color": "#335c67",
+        "accent_color": "#4cc9f0",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:dense_energy_cell",
+    "name": "Dense Energy Cell",
+    "category": "energy",
+    "behavior_key": "dense_energy_cell",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/energy_cells",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 1600000,
+      "energy_generation": 0,
+      "rotatable": false,
+      "description": "High-density capacitor storing up to 1,600,000 AE (8x a standard Energy Cell).",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "config_schema": [
+        {
+          "key": "initial_charge_pct",
+          "label": "Initial Charge (%)",
+          "type": "number",
+          "default": 100,
+          "description": "Initial stored energy percentage (0-100)."
+        }
+      ],
+      "visual": {
+        "color": "#1d3557",
+        "accent_color": "#00b4d8",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  },
+  {
+    "id": "ae2:creative_energy_cell",
+    "name": "Creative Energy Cell",
+    "category": "energy",
+    "behavior_key": "creative_energy_cell",
+    "fidelity": "exact",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/energy_cells",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 8,
+      "transmits_channels": true,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 1000000000,
+      "energy_generation": 1000000000,
+      "rotatable": false,
+      "description": "Provides inexhaustible AE power for sandbox testing of channel and crafting topologies.",
+      "connection_rules": {
+        "connect_all_faces": true
+      },
+      "visual": {
+        "color": "#5a189a",
+        "accent_color": "#ff9e00",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
+  }
+]

@@ -1,8 +1,11 @@
 package domain
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
-// Coord3D represents a position in a 3D block grid.
+// Coord3D represents an integer position in the 3D voxel grid.
 type Coord3D struct {
 	X int `json:"x"`
 	Y int `json:"y"`
@@ -19,7 +22,7 @@ func (c Coord3D) Adjacent(dir Direction) Coord3D {
 	}
 }
 
-// Neighbors returns the six coordinates directly adjacent to c.
+// Neighbors returns the six coordinates directly adjacent to c in canonical order.
 func (c Coord3D) Neighbors() []Coord3D {
 	dirs := AllDirections()
 	neighbors := make([]Coord3D, len(dirs))
@@ -29,24 +32,90 @@ func (c Coord3D) Neighbors() []Coord3D {
 	return neighbors
 }
 
-// String returns a human-readable representation of the coordinate.
+// ManhattanDistance returns the L1 grid distance between two coordinates.
+func (c Coord3D) ManhattanDistance(other Coord3D) int {
+	dx := c.X - other.X
+	if dx < 0 {
+		dx = -dx
+	}
+	dy := c.Y - other.Y
+	if dy < 0 {
+		dy = -dy
+	}
+	dz := c.Z - other.Z
+	if dz < 0 {
+		dz = -dz
+	}
+	return dx + dy + dz
+}
+
+// DirectionTo returns the cardinal/vertical direction from c to an immediately adjacent neighbor, if adjacent.
+func (c Coord3D) DirectionTo(neighbor Coord3D) (Direction, bool) {
+	for _, d := range AllDirections() {
+		if c.Adjacent(d) == neighbor {
+			return d, true
+		}
+	}
+	return "", false
+}
+
+// String returns a human-readable coordinate string.
 func (c Coord3D) String() string {
 	return fmt.Sprintf("(%d, %d, %d)", c.X, c.Y, c.Z)
 }
 
-// Direction represents a cardinal or vertical direction in 3D space.
-type Direction int
+// CompareCoords defines a deterministic total ordering over 3D coordinates (Y, then Z, then X).
+func CompareCoords(a, b Coord3D) int {
+	if a.Y != b.Y {
+		if a.Y < b.Y {
+			return -1
+		}
+		return 1
+	}
+	if a.Z != b.Z {
+		if a.Z < b.Z {
+			return -1
+		}
+		return 1
+	}
+	if a.X != b.X {
+		if a.X < b.X {
+			return -1
+		}
+		return 1
+	}
+	return 0
+}
+
+// Direction represents one of the six block faces / grid directions.
+type Direction string
 
 const (
-	North Direction = iota // -Z
-	South                  // +Z
-	East                   // +X
-	West                   // -X
-	Up                     // +Y
-	Down                   // -Y
+	North Direction = "north" // -Z
+	South Direction = "south" // +Z
+	East  Direction = "east"  // +X
+	West  Direction = "west"  // -X
+	Up    Direction = "up"    // +Y
+	Down  Direction = "down"  // -Y
 )
 
-// Opposite returns the direction opposite to d.
+// ParseDirection normalizes and validates a direction string.
+func ParseDirection(raw string) (Direction, bool) {
+	d := Direction(strings.ToLower(strings.TrimSpace(raw)))
+	return d, d.IsValid()
+}
+
+// IsValid reports whether d is one of the six valid directions.
+func (d Direction) IsValid() bool {
+	switch d {
+	case North, South, East, West, Up, Down:
+		return true
+	default:
+		return false
+	}
+}
+
+// Opposite returns the opposite direction.
 func (d Direction) Opposite() Direction {
 	switch d {
 	case North:
@@ -62,11 +131,27 @@ func (d Direction) Opposite() Direction {
 	case Down:
 		return Up
 	default:
+		return North
+	}
+}
+
+// RotateYClockwise rotates horizontal directions 90 degrees clockwise around +Y.
+func (d Direction) RotateYClockwise() Direction {
+	switch d {
+	case North:
+		return East
+	case East:
+		return South
+	case South:
+		return West
+	case West:
+		return North
+	default:
 		return d
 	}
 }
 
-// Offset returns the unit vector offset for this direction as a Coord3D.
+// Offset returns the unit step vector for d.
 func (d Direction) Offset() Coord3D {
 	switch d {
 	case North:
@@ -86,59 +171,12 @@ func (d Direction) Offset() Coord3D {
 	}
 }
 
-// String returns the name of the direction.
+// String returns the canonical lowercase direction string.
 func (d Direction) String() string {
-	switch d {
-	case North:
-		return "North"
-	case South:
-		return "South"
-	case East:
-		return "East"
-	case West:
-		return "West"
-	case Up:
-		return "Up"
-	case Down:
-		return "Down"
-	default:
-		return "Unknown"
-	}
+	return string(d)
 }
 
-// AllDirections returns a slice containing all six directions.
+// AllDirections returns all six directions in deterministic canonical order.
 func AllDirections() []Direction {
 	return []Direction{North, South, East, West, Up, Down}
-}
-
-// Face represents which face of a block is being referenced.
-type Face int
-
-const (
-	FaceNorth Face = iota
-	FaceSouth
-	FaceEast
-	FaceWest
-	FaceTop
-	FaceBottom
-)
-
-// String returns the name of the face.
-func (f Face) String() string {
-	switch f {
-	case FaceNorth:
-		return "North"
-	case FaceSouth:
-		return "South"
-	case FaceEast:
-		return "East"
-	case FaceWest:
-		return "West"
-	case FaceTop:
-		return "Top"
-	case FaceBottom:
-		return "Bottom"
-	default:
-		return "Unknown"
-	}
 }
