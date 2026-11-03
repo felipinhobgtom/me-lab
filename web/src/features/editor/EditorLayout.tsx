@@ -34,6 +34,12 @@ interface ExportModalState {
   content: string
 }
 
+interface BlockContextMenuState {
+  blockId: string
+  x: number
+  y: number
+}
+
 export function EditorLayout() {
   const { projectId: routeProjectId } = useParams<{ projectId?: string }>()
 
@@ -79,6 +85,7 @@ export function EditorLayout() {
   const loadPresetOperations = useEditorStore((s) => s.loadPresetOperations)
   const clearHighlights = useEditorStore((s) => s.clearHighlights)
   const saveLayout = useEditorStore((s) => s.saveLayout)
+  const selectBlock = useEditorStore((s) => s.selectBlock)
   const runValidation = useEditorStore((s) => s.runValidation)
   const startSimulation = useEditorStore((s) => s.startSimulation)
 
@@ -91,6 +98,7 @@ export function EditorLayout() {
   const [presetsMenuOpen, setPresetsMenuOpen] = useState<boolean>(false)
   const [exportMenuOpen, setExportMenuOpen] = useState<boolean>(false)
   const [exportModal, setExportModal] = useState<ExportModalState | null>(null)
+  const [blockContextMenu, setBlockContextMenu] = useState<BlockContextMenuState | null>(null)
 
   const autoSyncTimerRef = useRef<number | null>(null)
 
@@ -272,7 +280,9 @@ export function EditorLayout() {
         return
       }
       if (e.key === 'Escape') {
-        if (paletteOpen) {
+        if (blockContextMenu) {
+          setBlockContextMenu(null)
+        } else if (paletteOpen) {
           setPaletteOpen(false)
         } else if (inspectorOpen) {
           setInspectorOpen(false)
@@ -305,8 +315,16 @@ export function EditorLayout() {
     setInspectorOpen,
     setSimDrawerOpen,
     simDrawerOpen,
+    blockContextMenu,
     undo,
   ])
+
+  useEffect(() => {
+    if (!blockContextMenu) return
+    const closeMenu = () => setBlockContextMenu(null)
+    document.addEventListener('pointerdown', closeMenu)
+    return () => document.removeEventListener('pointerdown', closeMenu)
+  }, [blockContextMenu])
 
   const catalogById = useMemo(() => {
     const m = new Map<string, BlockDefinition>()
@@ -341,6 +359,37 @@ export function EditorLayout() {
 
   const activeSummary = simulationRun?.summary ?? validationResult?.summary ?? null
   const errorCount = diagnostics.filter((d) => d.severity === 'error').length
+
+  const contextBlock = blockContextMenu
+    ? blocks.find((block) => block.id === blockContextMenu.blockId) ?? null
+    : null
+  const contextBlockDef = contextBlock
+    ? catalogById.get(contextBlock.block_def_id)
+    : undefined
+
+  const handleBlockContextMenu = (blockId: string, x: number, y: number) => {
+    selectBlock(blockId, false)
+    setBlockContextMenu({
+      blockId,
+      x: Math.min(Math.max(8, x), Math.max(8, window.innerWidth - 196)),
+      y: Math.min(Math.max(8, y), Math.max(8, window.innerHeight - 190)),
+    })
+  }
+
+  const handleContextAction = (action: 'properties' | 'rotate' | 'duplicate' | 'remove') => {
+    if (!blockContextMenu) return
+    selectBlock(blockContextMenu.blockId, false)
+    if (action === 'properties') {
+      setInspectorOpen(true)
+    } else if (action === 'rotate') {
+      rotateSelectedOrPlacement()
+    } else if (action === 'duplicate') {
+      duplicateSelected()
+    } else {
+      removeBlocks([blockContextMenu.blockId])
+    }
+    setBlockContextMenu(null)
+  }
 
   const handleValidateClick = async () => {
     const res = await runValidation()
@@ -424,11 +473,58 @@ export function EditorLayout() {
   }
 
   return (
-    <div className="sandbox-root" data-project-name={project?.name ?? 'AE2 Sandbox'}>
+    <div
+      className="sandbox-root"
+      data-project-name={project?.name ?? 'AE2 Sandbox'}
+      onContextMenu={(event) => event.preventDefault()}
+    >
       {/* Full-bleed 3D Voxel Canvas (or optional 2D Y-Slice Grid) */}
       <main className="sandbox-stage">
-        {viewMode === '3d' ? <Workspace3D /> : <Workspace2D />}
+        {viewMode === '3d' ? (
+          <Workspace3D onBlockContextMenu={handleBlockContextMenu} />
+        ) : (
+          <Workspace2D onBlockContextMenu={handleBlockContextMenu} />
+        )}
       </main>
+
+      {contextBlock && blockContextMenu && (
+        <div
+          className="block-context-menu"
+          role="menu"
+          aria-label={`Actions for ${contextBlockDef?.name ?? contextBlock.block_def_id}`}
+          style={{ left: blockContextMenu.x, top: blockContextMenu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <div className="block-context-heading">
+            <strong>{contextBlockDef?.name ?? contextBlock.block_def_id}</strong>
+            <span>
+              ({contextBlock.x}, {contextBlock.y}, {contextBlock.z})
+            </span>
+          </div>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => handleContextAction('properties')}
+          >
+            Properties
+          </button>
+          <button type="button" role="menuitem" onClick={() => handleContextAction('rotate')}>
+            Rotate
+          </button>
+          <button type="button" role="menuitem" onClick={() => handleContextAction('duplicate')}>
+            Duplicate
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="block-context-danger"
+            onClick={() => handleContextAction('remove')}
+          >
+            Remove
+          </button>
+        </div>
+      )}
 
       {/* Top-Left Minimal Sandbox Toolbar */}
       <header className="hud-pill hud-top-left">

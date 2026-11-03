@@ -226,8 +226,12 @@ interface DragState {
   blockIds: string[]
 }
 
+export interface Workspace3DProps {
+  onBlockContextMenu?: (blockId: string, x: number, y: number) => void
+}
 
-function VoxelSandboxScene() {
+
+function VoxelSandboxScene({ onBlockContextMenu }: Workspace3DProps) {
   const blocks = useEditorStore((s) => s.blocks)
   const catalog = useEditorStore((s) => s.catalog)
   const selectedBlockIds = useEditorStore((s) => s.selectedBlockIds)
@@ -510,6 +514,12 @@ function VoxelSandboxScene() {
     setInspectorOpen(true)
   }
 
+  const handleBlockContextMenu = (block: PlacedBlock, e: ThreeEvent<MouseEvent>) => {
+    e.nativeEvent.preventDefault()
+    e.stopPropagation()
+    onBlockContextMenu?.(block.id, e.nativeEvent.clientX, e.nativeEvent.clientY)
+  }
+
   const handleBlockAuxClick = (block: PlacedBlock, e: ThreeEvent<MouseEvent>) => {
     // Middle-click = Minecraft Pick Block!
     if (e.nativeEvent.button === 1) {
@@ -635,6 +645,7 @@ function VoxelSandboxScene() {
             onPointerMove={(e) => handleBlockDragMove(block, e)}
             onClick={(e) => handleBlockClick(block, e)}
             onDoubleClick={(e) => handleBlockDoubleClick(block, e)}
+            onContextMenu={(e) => handleBlockContextMenu(block, e)}
             onPointerUp={(e) => {
               finishBlockDrag(e)
               if (e.nativeEvent.button === 1) {
@@ -732,11 +743,16 @@ function VoxelSandboxScene() {
   )
 }
 
-export function Workspace3D() {
+export function Workspace3D({ onBlockContextMenu }: Workspace3DProps) {
   const [webglSupported] = useState<boolean>(() => detectWebGLAvailable())
 
   if (!webglSupported) {
-    return <Workspace2D fallbackNotice="WebGL unavailable — showing 2D layer grid" />
+    return (
+      <Workspace2D
+        fallbackNotice="WebGL unavailable — showing 2D layer grid"
+        onBlockContextMenu={onBlockContextMenu}
+      />
+    )
   }
 
   return (
@@ -745,7 +761,7 @@ export function Workspace3D() {
         camera={{ position: [-7.5, 6.5, 9.5], fov: 42, near: 0.1, far: 250 }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
       >
-        <VoxelSandboxScene />
+        <VoxelSandboxScene onBlockContextMenu={onBlockContextMenu} />
       </Canvas>
     </div>
   )

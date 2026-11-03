@@ -114,6 +114,58 @@ body,
   padding: 0 4px;
 }
 
+.block-context-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 176px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(28, 28, 28, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
+}
+
+.block-context-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e5e5e5;
+  font-size: 12px;
+}
+
+.block-context-heading span {
+  color: #737373;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.block-context-menu button {
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #d4d4d4;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.block-context-menu button:hover,
+.block-context-menu button:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
+.block-context-menu .block-context-danger {
+  color: #fca5a5;
+}
+
 .status-dot {
   display: inline-block;
   width: 8px;

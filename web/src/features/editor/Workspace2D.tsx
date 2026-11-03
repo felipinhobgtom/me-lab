@@ -57,9 +57,10 @@ function blockShortCode(def: BlockDefinition | undefined, blockDefId: string): s
 
 export interface Workspace2DProps {
   fallbackNotice?: string
+  onBlockContextMenu?: (blockId: string, x: number, y: number) => void
 }
 
-export function Workspace2D({ fallbackNotice }: Workspace2DProps) {
+export function Workspace2D({ fallbackNotice, onBlockContextMenu }: Workspace2DProps) {
   const blocks = useEditorStore((s) => s.blocks)
   const catalog = useEditorStore((s) => s.catalog)
   const activeLayerY = useEditorStore((s) => s.activeLayerY)
@@ -185,6 +186,16 @@ export function Workspace2D({ fallbackNotice }: Workspace2DProps) {
     }
   }
 
+  const handleCellContextMenu = (
+    e: MouseEvent<HTMLButtonElement>,
+    block: PlacedBlock | undefined
+  ) => {
+    if (!block) return
+    e.preventDefault()
+    e.stopPropagation()
+    onBlockContextMenu?.(block.id, e.clientX, e.clientY)
+  }
+
   return (
     <div className="workspace-2d" data-testid="workspace-2d">
       <div className="workspace-2d-hud">
@@ -276,6 +287,7 @@ export function Workspace2D({ fallbackNotice }: Workspace2DProps) {
                     onMouseEnter={() => setHoverCoord({ x, z })}
                     onMouseLeave={() => setHoverCoord(null)}
                     onClick={(e) => handleCellClick(e, x, z, block)}
+                    onContextMenu={(e) => handleCellContextMenu(e, block)}
                   >
                     {!block && otherYs && otherYs.length > 0 && (
                       <span className="cell-below-hint">Y:{otherYs[0]}</span>

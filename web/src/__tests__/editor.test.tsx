@@ -101,6 +101,39 @@ describe('ME Lab zero-login AE2 sandbox', () => {
     expect(window.localStorage.getItem('melab_sandbox_project_id')).toBe('proj-1')
   })
 
+  it('opens a block context menu with properties and removal actions', async () => {
+    mockBackend()
+    renderApp()
+    await screen.findByText(/Empty Sandbox/i)
+
+    const state = useEditorStore.getState()
+    state.setViewMode('2d')
+    state.setActiveBlockDefId('ae2:controller')
+    const placed = state.placeBlockAt({ x: 0, y: 0, z: 0 }, 'south')!
+    expect(useEditorStore.getState().blocks).toHaveLength(1)
+    await waitFor(() => expect(screen.getByTestId('grid-cell-0-0-0')).toHaveClass('selected'))
+
+    fireEvent.contextMenu(screen.getByTestId('grid-cell-0-0-0'), {
+      clientX: 120,
+      clientY: 140,
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('menu')).toHaveAccessibleName('Actions for ME Controller')
+    )
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Properties' }))
+    expect(screen.getByText('Block Configuration')).toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByTestId('grid-cell-0-0-0'), {
+      clientX: 120,
+      clientY: 140,
+    })
+    await waitFor(() => expect(screen.getByRole('menu')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
+    expect(useEditorStore.getState().blocks).toHaveLength(0)
+    expect(useEditorStore.getState().selectedBlockIds).not.toContain(placed.id)
+  })
+
   it('reuses the remembered sandbox project instead of creating a new one', async () => {
     window.localStorage.setItem('melab_sandbox_project_id', 'proj-1')
     const { createProject, getProject } = mockBackend()
