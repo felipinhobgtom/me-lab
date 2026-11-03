@@ -119,8 +119,8 @@ fi
 
 printf '%s' "$ghcr_token" | docker login ghcr.io --username "$ghcr_username" --password-stdin
 cd /opt/me-lab
-IMAGE_TAG="$image_tag" GITHUB_REPOSITORY="$github_repository" docker compose -f deployments/azure/compose.prod.yaml pull
-IMAGE_TAG="$image_tag" GITHUB_REPOSITORY="$github_repository" docker compose -f deployments/azure/compose.prod.yaml up -d --remove-orphans
+IMAGE_TAG="$image_tag" GITHUB_REPOSITORY="$github_repository" docker compose --env-file /opt/me-lab/.env -f deployments/azure/compose.prod.yaml pull
+IMAGE_TAG="$image_tag" GITHUB_REPOSITORY="$github_repository" docker compose --env-file /opt/me-lab/.env -f deployments/azure/compose.prod.yaml up -d --remove-orphans
 docker logout ghcr.io >/dev/null 2>&1 || true
 ''', composeFileBase64, base64(jwtSecret), base64(corsAllowedOrigins), base64(githubRepository), base64(storageAccountName), base64(backupContainerName), base64(ghcrPullToken), base64(ghcrUsername), base64(appImageTag))
 var appDeployCommand = format('printf %s {0} | base64 -d > /tmp/me-lab-deploy.sh && chmod 700 /tmp/me-lab-deploy.sh && /bin/bash /tmp/me-lab-deploy.sh', base64(appDeployScript))
