@@ -64,14 +64,29 @@ var appDeployScript = format('''
 #!/bin/bash
 set -euo pipefail
 
-for attempt in $(seq 1 90); do
-  if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+if command -v cloud-init >/dev/null 2>&1; then
+  cloud-init status --wait || true
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y docker.io docker-compose-v2
+  systemctl enable --now docker
+fi
+
+for attempt in $(seq 1 180); do
+  if docker info >/dev/null 2>&1; then
     break
   fi
   sleep 10
 done
 
-command -v docker
+if ! docker info >/dev/null 2>&1; then
+  echo 'Docker did not become ready on the VM.' >&2
+  systemctl status docker --no-pager >&2 || true
+  exit 1
+fi
 mkdir -p /opt/me-lab/deployments/azure
 printf '%s' '{0}' | base64 -d > /opt/me-lab/deployments/azure/compose.prod.yaml
 
