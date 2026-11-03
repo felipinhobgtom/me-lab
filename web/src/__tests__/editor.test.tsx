@@ -164,6 +164,43 @@ describe('ME Lab zero-login AE2 sandbox', () => {
     expect(useEditorStore.getState().blocks).toHaveLength(2)
   })
 
+  it('moves blocks with collision checks and keeps the operation undoable', async () => {
+    mockBackend()
+    renderApp()
+    await screen.findByText(/Empty Sandbox/i)
+
+    const s = useEditorStore.getState()
+    s.setActiveBlockDefId('ae2:controller')
+    const first = s.placeBlockAt({ x: 0, y: 0, z: 0 }, 'south')!
+    const second = s.placeBlockAt({ x: 2, y: 0, z: 0 }, 'south')!
+
+    expect(useEditorStore.getState().moveBlocks([first.id], { x: 2, y: 0, z: 0 })).toBe(false)
+    expect(useEditorStore.getState().blocks.find((b) => b.id === first.id)?.x).toBe(0)
+
+    expect(useEditorStore.getState().moveBlocks([first.id], { x: 1, y: 0, z: 0 })).toBe(true)
+    expect(useEditorStore.getState().blocks.find((b) => b.id === first.id)?.x).toBe(1)
+    expect(useEditorStore.getState().blocks.find((b) => b.id === second.id)?.x).toBe(2)
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().blocks.find((b) => b.id === first.id)?.x).toBe(0)
+  })
+
+  it('rotates a Minecraft chest through the shared editor action', async () => {
+    mockBackend()
+    renderApp()
+    await screen.findByText(/Empty Sandbox/i)
+
+    const chest = def('minecraft:chest', 'Chest', 'storage')
+    useEditorStore.setState({ catalog: [...catalog, chest] })
+    const s = useEditorStore.getState()
+    s.setActiveBlockDefId('minecraft:chest')
+    const placed = s.placeBlockAt({ x: 0, y: 0, z: 0 }, 'south')!
+    s.selectBlock(placed.id, false)
+    s.rotateSelectedOrPlacement()
+
+    expect(useEditorStore.getState().blocks[0].facing).toBe('west')
+  })
+
   it('loads the guide showcase preset and auto-saves it through the API', async () => {
     const { batch } = mockBackend()
     vi.spyOn(api, 'validateProject').mockResolvedValue({

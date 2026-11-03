@@ -204,6 +204,8 @@ export function getBlockIconUrl(blockDefId: string, cableColor: CableColor = 'fl
       return '/textures/minecraft/block/hopper_outside.png'
     case 'minecraft:barrel':
       return '/textures/minecraft/block/barrel_side.png'
+    case 'minecraft:chest':
+      return '/textures/minecraft/block/oak_planks.png'
     case 'ae2:p2p_tunnel':
       return '/textures/ae2/part/p2p_tunnel_front.png'
     case 'ae2:quantum_ring':

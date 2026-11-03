@@ -313,5 +313,35 @@
         "size": [0.625, 0.625, 0.25]
       }
     }
+  },
+  {
+    "id": "minecraft:chest",
+    "name": "Chest",
+    "category": "storage",
+    "behavior_key": "external_storage",
+    "fidelity": "approximated",
+    "doc_reference": "https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/import-export-storage",
+    "metadata": {
+      "channel_usage": 0,
+      "channel_capacity": 0,
+      "transmits_channels": false,
+      "is_cable": false,
+      "is_smart_cable": false,
+      "is_dense_cable": false,
+      "energy_cost": 0,
+      "energy_capacity": 0,
+      "energy_generation": 0,
+      "rotatable": true,
+      "description": "Vanilla Minecraft chest used as an external storage container beside an ME Storage Bus.",
+      "connection_rules": {
+        "connect_all_faces": false
+      },
+      "visual": {
+        "color": "#9a6a3a",
+        "accent_color": "#d4a373",
+        "shape": "cube",
+        "size": [1.0, 1.0, 1.0]
+      }
+    }
   }
 ]

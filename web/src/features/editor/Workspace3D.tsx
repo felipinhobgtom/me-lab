@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ElementRef } from 'react'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
@@ -22,6 +23,21 @@ import {
 import { selectActiveOverlay, useEditorStore, type CameraPreset } from './store'
 import { VoxelBlockModel } from './VoxelModels'
 import { Workspace2D } from './Workspace2D'
+
+type OrbitControlsInstance = ElementRef<typeof OrbitControls>
+
+const CAMERA_KEYS = new Set(['w', 'a', 's', 'd'])
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null
+  if (!element) return false
+  return (
+    element.isContentEditable ||
+    element.tagName === 'INPUT' ||
+    element.tagName === 'TEXTAREA' ||
+    element.tagName === 'SELECT'
+  )
+}
 
 function detectWebGLAvailable(): boolean {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
@@ -86,6 +102,7 @@ function smartAutoFacing(
     if (
       blockDefId === 'ae2:drive' ||
       blockDefId === 'ae2:chest' ||
+      blockDefId === 'minecraft:chest' ||
       blockDefId === 'minecraft:furnace' ||
       blockDefId === 'minecraft:blast_furnace' ||
       blockDefId === 'ae2:crafting_monitor'
@@ -118,6 +135,67 @@ function CameraRig({ preset }: { preset: CameraPreset }) {
   }, [camera, preset])
   return null
 }
+function KeyboardCameraControls({
+  controlsRef,
+}: {
+  controlsRef: { current: OrbitControlsInstance | null }
+}) {
+  const { camera } = useThree()
+  const keysRef = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) return
+      const key = event.key.toLowerCase()
+      if (!CAMERA_KEYS.has(key) && key !== 'shift') return
+      keysRef.current.add(key)
+      if (CAMERA_KEYS.has(key)) event.preventDefault()
+    }
+    const onKeyUp = (event: KeyboardEvent) => {
+      keysRef.current.delete(event.key.toLowerCase())
+    }
+    const clearKeys = () => keysRef.current.clear()
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', clearKeys)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', clearKeys)
+    }
+  }, [])
+
+  useFrame((_, delta) => {
+    const keys = keysRef.current
+    if (![...CAMERA_KEYS].some((key) => keys.has(key))) return
+
+    const forward = new THREE.Vector3()
+    camera.getWorldDirection(forward)
+    forward.y = 0
+    if (forward.lengthSq() < 0.0001) return
+    forward.normalize()
+
+    const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize()
+    const movement = new THREE.Vector3()
+    if (keys.has('w')) movement.add(forward)
+    if (keys.has('s')) movement.sub(forward)
+    if (keys.has('d')) movement.add(right)
+    if (keys.has('a')) movement.sub(right)
+    if (movement.lengthSq() === 0) return
+
+    const speed = keys.has('shift') ? 12 : 5
+    const offset = movement.normalize().multiplyScalar(speed * delta)
+    camera.position.add(offset)
+    if (controlsRef.current) {
+      controlsRef.current.target.add(offset)
+      controlsRef.current.update()
+    }
+  })
+
+  return null
+}
+
 
 function DiagnosticPulseBox({ active }: { active: boolean }) {
   const matRef = useRef<THREE.MeshBasicMaterial | null>(null)
@@ -141,6 +219,13 @@ interface HoverTarget {
   clickedFace: Direction
   attachAsSubpart: boolean
 }
+interface DragState {
+  pointerId: number
+  planeY: number
+  startPoint: THREE.Vector3
+  blockIds: string[]
+}
+
 
 function VoxelSandboxScene() {
   const blocks = useEditorStore((s) => s.blocks)
@@ -163,6 +248,12 @@ function VoxelSandboxScene() {
   const attachSubpartToCable = useEditorStore((s) => s.attachSubpartToCable)
   const removeSubpartFromCable = useEditorStore((s) => s.removeSubpartFromCable)
   const removeBlocks = useEditorStore((s) => s.removeBlocks)
+  const moveBlocks = useEditorStore((s) => s.moveBlocks)
+
+  const controlsRef = useRef<OrbitControlsInstance | null>(null)
+  const dragStateRef = useRef<DragState | null>(null)
+  const [dragOffset, setDragOffset] = useState<Coord3D>({ x: 0, y: 0, z: 0 })
+  const [isDragging, setIsDragging] = useState(false)
 
   const [hoverTarget, setHoverTarget] = useState<HoverTarget | null>(null)
   const pointerDownRef = useRef<{ x: number; y: number } | null>(null)
@@ -177,6 +268,14 @@ function VoxelSandboxScene() {
     const dy = e.nativeEvent.clientY - pointerDownRef.current.y
     return dx * dx + dy * dy > 36 // > 6px movement = camera orbit/pan
   }
+  const getDragPlanePoint = (
+    e: ThreeEvent<PointerEvent>,
+    planeY: number
+  ): THREE.Vector3 | null => {
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY)
+    return e.ray.intersectPlane(plane, new THREE.Vector3())
+  }
+
 
   const activeOverlay = selectActiveOverlay({ simulationRun, validationResult })
 
@@ -296,6 +395,72 @@ function VoxelSandboxScene() {
     e.stopPropagation()
     setHoverTarget(computeBlockFaceTarget(block, e))
   }
+  const handleBlockPointerDown = (block: PlacedBlock, e: ThreeEvent<PointerEvent>) => {
+    recordPointerDown(e)
+    e.stopPropagation()
+    if (e.button !== 0 || activeBlockDefId !== null || e.nativeEvent.shiftKey) return
+
+    const blockIds = selectedBlockIds.includes(block.id)
+      ? selectedBlockIds
+      : [block.id]
+    const startPoint = getDragPlanePoint(e, block.y)
+    if (!startPoint) return
+
+    if (!selectedBlockIds.includes(block.id)) {
+      selectBlock(block.id, false)
+    }
+    dragStateRef.current = {
+      pointerId: e.pointerId,
+      planeY: block.y,
+      startPoint,
+      blockIds,
+    }
+    setDragOffset({ x: 0, y: 0, z: 0 })
+    setIsDragging(true)
+    if (controlsRef.current) controlsRef.current.enabled = false
+    const pointerTarget = e.target as unknown as {
+      setPointerCapture?: (pointerId: number) => void
+    }
+    pointerTarget.setPointerCapture?.(e.pointerId)
+  }
+
+  const handleBlockDragMove = (block: PlacedBlock, e: ThreeEvent<PointerEvent>) => {
+    const drag = dragStateRef.current
+    if (!drag || drag.pointerId !== e.pointerId || !drag.blockIds.includes(block.id)) {
+      handleBlockMove(block, e)
+      return
+    }
+    e.stopPropagation()
+    const point = getDragPlanePoint(e, drag.planeY)
+    if (!point) return
+    const nextOffset = {
+      x: Math.round(point.x - drag.startPoint.x),
+      y: 0,
+      z: Math.round(point.z - drag.startPoint.z),
+    }
+    setDragOffset((current) =>
+      current.x === nextOffset.x && current.z === nextOffset.z ? current : nextOffset
+    )
+  }
+
+  const finishBlockDrag = (e: ThreeEvent<PointerEvent>) => {
+    const drag = dragStateRef.current
+    if (!drag || drag.pointerId !== e.pointerId) return
+
+    e.stopPropagation()
+    if (dragOffset.x !== 0 || dragOffset.y !== 0 || dragOffset.z !== 0) {
+      moveBlocks(drag.blockIds, dragOffset)
+    }
+    dragStateRef.current = null
+    setDragOffset({ x: 0, y: 0, z: 0 })
+    setIsDragging(false)
+    if (controlsRef.current) controlsRef.current.enabled = true
+    const pointerTarget = e.target as unknown as {
+      releasePointerCapture?: (pointerId: number) => void
+    }
+    pointerTarget.releasePointerCapture?.(e.pointerId)
+  }
+
 
   const handleBlockClick = (block: PlacedBlock, e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
@@ -405,7 +570,15 @@ function VoxelSandboxScene() {
       <directionalLight position={[-10, 8, -10]} intensity={0.45} />
 
       <CameraRig preset={cameraPreset} />
-      <OrbitControls makeDefault enableDamping dampingFactor={0.1} target={[0.5, 0.5, 0]} />
+      <KeyboardCameraControls controlsRef={controlsRef} />
+      <OrbitControls
+        ref={controlsRef}
+        makeDefault
+        enableDamping
+        dampingFactor={0.1}
+        enabled={!isDragging}
+        target={[0.5, 0.5, 0]}
+      />
 
       {/* Subtle AE2 Guide neutral dark voxel grid aligned to 1x1 block edges */}
       <gridHelper args={[32, 32, '#2e2e2e', '#242424']} position={[0.5, -0.5, 0.5]} />
@@ -437,6 +610,8 @@ function VoxelSandboxScene() {
         const isSelected = selectedBlockIds.includes(block.id)
         const isDiagHighlighted =
           overlays.warnings && highlightedSet.has(coordKey(block.x, block.y, block.z))
+        const isDragTarget = dragStateRef.current?.blockIds.includes(block.id) ?? false
+        const renderOffset = isDragTarget ? dragOffset : { x: 0, y: 0, z: 0 }
 
         const online =
           cOverlay !== undefined
@@ -451,16 +626,22 @@ function VoxelSandboxScene() {
         return (
           <group
             key={block.id}
-            position={[block.x, block.y, block.z]}
-            onPointerDown={recordPointerDown}
-            onPointerMove={(e) => handleBlockMove(block, e)}
+            position={[
+              block.x + renderOffset.x,
+              block.y + renderOffset.y,
+              block.z + renderOffset.z,
+            ]}
+            onPointerDown={(e) => handleBlockPointerDown(block, e)}
+            onPointerMove={(e) => handleBlockDragMove(block, e)}
             onClick={(e) => handleBlockClick(block, e)}
             onDoubleClick={(e) => handleBlockDoubleClick(block, e)}
             onPointerUp={(e) => {
+              finishBlockDrag(e)
               if (e.nativeEvent.button === 1) {
                 handleBlockAuxClick(block, e as unknown as ThreeEvent<MouseEvent>)
               }
             }}
+            onPointerCancel={finishBlockDrag}
           >
             <VoxelBlockModel
               block={block}

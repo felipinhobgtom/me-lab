@@ -133,6 +133,7 @@ func TestRegistryBlockLookupAndFidelity(t *testing.T) {
 		"minecraft:blast_furnace":       domain.FidelityApproximated,
 		"minecraft:hopper":              domain.FidelityApproximated,
 		"minecraft:barrel":              domain.FidelityApproximated,
+		"minecraft:chest":               domain.FidelityApproximated,
 		"ae2:p2p_tunnel":                domain.FidelityUnsupported,
 		"ae2:quantum_ring":              domain.FidelityUnsupported,
 	}

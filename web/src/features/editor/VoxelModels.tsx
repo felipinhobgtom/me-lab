@@ -849,6 +849,51 @@ export function VoxelBlockModel({
     )
   }
 
+  if (id === 'minecraft:chest') {
+    const oakTex = loadPixelTexture('/textures/minecraft/block/oak_planks.png')
+    const ironTex = loadPixelTexture('/textures/minecraft/block/iron_block.png')
+    const yaw =
+      block.facing === 'north'
+        ? Math.PI
+        : block.facing === 'east'
+          ? Math.PI / 2
+          : block.facing === 'west'
+            ? -Math.PI / 2
+            : 0
+    return (
+      <group rotation={[0, yaw, 0]}>
+        <mesh position={[0, -0.08, 0]}>
+          <boxGeometry args={[0.86, 0.58, 0.82]} />
+          <meshStandardMaterial
+            map={oakTex}
+            roughness={0.9}
+            transparent={isGhost}
+            opacity={opacity}
+          />
+        </mesh>
+        <mesh position={[0, 0.3, 0]}>
+          <boxGeometry args={[0.86, 0.18, 0.82]} />
+          <meshStandardMaterial
+            map={oakTex}
+            roughness={0.9}
+            transparent={isGhost}
+            opacity={opacity}
+          />
+        </mesh>
+        <mesh position={[0, 0.03, 0.425]}>
+          <boxGeometry args={[0.12, 0.18, 0.05]} />
+          <meshStandardMaterial
+            map={ironTex}
+            metalness={0.7}
+            roughness={0.35}
+            transparent={isGhost}
+            opacity={opacity}
+          />
+        </mesh>
+      </group>
+    )
+  }
+
   if (id === 'ae2:chest') {
     const frontTex = loadPixelTexture('/textures/ae2/block/chest/front.png')
     const topTex = loadPixelTexture('/textures/ae2/block/chest/top.png')

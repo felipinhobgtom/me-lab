@@ -134,6 +134,7 @@ export interface EditorState {
   // Editing actions (Undo/Redo tracked)
   placeBlockAt: (coord: Coord3D, facingOverride?: Direction) => PlacedBlock | null
   removeBlocks: (blockIds?: string[]) => void
+  moveBlocks: (blockIds: string[], delta: Coord3D) => boolean
   rotateSelectedOrPlacement: () => void
   updateBlockFields: (
     blockId: string,
@@ -176,6 +177,8 @@ export const DEFAULT_HOTBAR: string[] = [
   'ae2:pattern_provider',
   'ae2:molecular_assembler',
   'ae2:crafting_storage_4k',
+  'minecraft:furnace',
+  'minecraft:chest',
 ]
 
 const initialOverlays: OverlayToggles = {
@@ -519,6 +522,53 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       saveError: null,
     })
   },
+  moveBlocks: (blockIds, delta) => {
+    const state = get()
+    const movingIds = new Set(blockIds)
+    const movingBlocks = state.blocks.filter((block) => movingIds.has(block.id))
+    if (
+      movingBlocks.length === 0 ||
+      (delta.x === 0 && delta.y === 0 && delta.z === 0)
+    ) {
+      return false
+    }
+
+    const stationaryKeys = new Set(
+      state.blocks
+        .filter((block) => !movingIds.has(block.id))
+        .map((block) => coordKey(block.x, block.y, block.z))
+    )
+    const destinationKeys = new Set<string>()
+    for (const block of movingBlocks) {
+      const key = coordKey(block.x + delta.x, block.y + delta.y, block.z + delta.z)
+      if (stationaryKeys.has(key) || destinationKeys.has(key)) {
+        return false
+      }
+      destinationKeys.add(key)
+    }
+
+    const now = new Date().toISOString()
+    const nextPast = [...state.past, structuredClone(state.blocks)].slice(-MAX_HISTORY)
+    set({
+      past: nextPast,
+      future: [],
+      blocks: state.blocks.map((block) =>
+        movingIds.has(block.id)
+          ? {
+              ...block,
+              x: block.x + delta.x,
+              y: block.y + delta.y,
+              z: block.z + delta.z,
+              updated_at: now,
+            }
+          : block
+      ),
+      saveStatus: 'unsaved',
+      saveError: null,
+    })
+    return true
+  },
+
 
   rotateSelectedOrPlacement: () => {
     const state = get()

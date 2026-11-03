@@ -686,7 +686,7 @@ export function EditorLayout() {
 
         <div className="hotbar-caption">
           {activeBlockDefId === null
-            ? 'Inspect Hand — Click any placed block to configure cells, patterns, or properties'
+            ? 'Inspect Hand — Click to configure; drag blocks on the grid; WASD moves the camera'
             : activeBlockDefId === '__break__'
               ? 'Break Tool — Click any block or cable subpart to remove'
               : `${activeDef?.name ?? activeBlockDefId}${
