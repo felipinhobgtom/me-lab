@@ -60,42 +60,55 @@ var storageAccountName = take(toLower('melab${uniqueString(resourceGroup().id, e
 var backupContainerName = 'sqlite-backups'
 
 var composeFileBase64 = base64(loadTextContent('compose.prod.yaml'))
-var appDeployCommand = format('''
-/bin/bash -c "
+var appDeployScript = format('''
+#!/bin/bash
 set -euo pipefail
+
 for attempt in $(seq 1 90); do
   if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
     break
   fi
   sleep 10
 done
+
 command -v docker
 mkdir -p /opt/me-lab/deployments/azure
-echo "{0}" | base64 -d > /opt/me-lab/deployments/azure/compose.prod.yaml
+printf '%s' '{0}' | base64 -d > /opt/me-lab/deployments/azure/compose.prod.yaml
+
+jwt_secret="$(printf '%s' '{1}' | base64 -d)"
+cors_allowed_origins="$(printf '%s' '{2}' | base64 -d)"
+github_repository="$(printf '%s' '{3}' | base64 -d)"
+storage_account_name="$(printf '%s' '{4}' | base64 -d)"
+backup_container_name="$(printf '%s' '{5}' | base64 -d)"
+ghcr_token="$(printf '%s' '{6}' | base64 -d)"
+ghcr_username="$(printf '%s' '{7}' | base64 -d)"
+image_tag="$(printf '%s' '{8}' | base64 -d)"
+
 if [ ! -s /opt/me-lab/.env ]; then
   umask 077
-  cat > /opt/me-lab/.env <<ENV
-PORT=8080
-DATABASE_URL=/mnt/melab-data/me-lab.db
-JWT_SECRET={1}
-JWT_EXPIRY_HOURS=24
-LOG_LEVEL=info
-CORS_ALLOWED_ORIGINS={2}
-GITHUB_REPOSITORY={3}
-AZURE_STORAGE_ACCOUNT={4}
-AZURE_STORAGE_CONTAINER={5}
-AZURE_USE_MANAGED_IDENTITY=true
-RETENTION_DAYS=30
-ENV
+  printf '%s\n' \
+    'PORT=8080' \
+    'DATABASE_URL=/mnt/melab-data/me-lab.db' \
+    "JWT_SECRET=$jwt_secret" \
+    'JWT_EXPIRY_HOURS=24' \
+    'LOG_LEVEL=info' \
+    "CORS_ALLOWED_ORIGINS=$cors_allowed_origins" \
+    "GITHUB_REPOSITORY=$github_repository" \
+    "AZURE_STORAGE_ACCOUNT=$storage_account_name" \
+    "AZURE_STORAGE_CONTAINER=$backup_container_name" \
+    'AZURE_USE_MANAGED_IDENTITY=true' \
+    'RETENTION_DAYS=30' \
+    > /opt/me-lab/.env
   chmod 0600 /opt/me-lab/.env
 fi
-echo "{6}" | docker login ghcr.io --username "{7}" --password-stdin
+
+printf '%s' "$ghcr_token" | docker login ghcr.io --username "$ghcr_username" --password-stdin
 cd /opt/me-lab
-IMAGE_TAG="{8}" GITHUB_REPOSITORY="{3}" docker compose -f deployments/azure/compose.prod.yaml pull
-IMAGE_TAG="{8}" GITHUB_REPOSITORY="{3}" docker compose -f deployments/azure/compose.prod.yaml up -d --remove-orphans
+IMAGE_TAG="$image_tag" GITHUB_REPOSITORY="$github_repository" docker compose -f deployments/azure/compose.prod.yaml pull
+IMAGE_TAG="$image_tag" GITHUB_REPOSITORY="$github_repository" docker compose -f deployments/azure/compose.prod.yaml up -d --remove-orphans
 docker logout ghcr.io >/dev/null 2>&1 || true
-"
-''', composeFileBase64, jwtSecret, corsAllowedOrigins, githubRepository, storageAccountName, backupContainerName, ghcrPullToken, ghcrUsername, appImageTag)
+''', composeFileBase64, base64(jwtSecret), base64(corsAllowedOrigins), base64(githubRepository), base64(storageAccountName), base64(backupContainerName), base64(ghcrPullToken), base64(ghcrUsername), base64(appImageTag))
+var appDeployCommand = format('printf %s {0} | base64 -d > /tmp/me-lab-deploy.sh && chmod 700 /tmp/me-lab-deploy.sh && /bin/bash /tmp/me-lab-deploy.sh', base64(appDeployScript))
 
 // Azure built-in role: Storage Blob Data Contributor
 var storageBlobDataContributorRoleId = subscriptionResourceId(
