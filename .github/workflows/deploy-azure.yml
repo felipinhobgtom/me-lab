@@ -31,6 +31,7 @@ jobs:
           SSH_CIDR_OVERRIDE: ${{ vars.AZURE_SSH_ALLOWED_CIDR }}
           DNS_LABEL_OVERRIDE: ${{ vars.AZURE_DNS_LABEL_PREFIX }}
           PUBLIC_URL_OVERRIDE: ${{ vars.PUBLIC_BASE_URL }}
+          TLS_READY_OVERRIDE: ${{ vars.AZURE_TLS_READY }}
         run: |
           set -euo pipefail
           resource_group="${RESOURCE_GROUP_OVERRIDE:-rg-melab-prod}"
@@ -40,7 +41,12 @@ jobs:
           ssh_cidr="${SSH_CIDR_OVERRIDE:?AZURE_SSH_ALLOWED_CIDR must be configured}"
           dns_label="${DNS_LABEL_OVERRIDE:-melab-ae2-prod}"
           public_url="${PUBLIC_URL_OVERRIDE:-https://${dns_label}.${location}.cloudapp.azure.com}"
-          health_url="${PUBLIC_URL_OVERRIDE:-http://${dns_label}.${location}.cloudapp.azure.com}"
+          tls_ready="${TLS_READY_OVERRIDE:-false}"
+          if [ "$tls_ready" = "true" ]; then
+            health_url="$public_url"
+          else
+            health_url="http://${dns_label}.${location}.cloudapp.azure.com"
+          fi
           {
             echo "resource_group=$resource_group"
             echo "location=$location"
@@ -50,6 +56,7 @@ jobs:
             echo "dns_label=$dns_label"
             echo "public_url=$public_url"
             echo "health_url=$health_url"
+            echo "tls_ready=$tls_ready"
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry

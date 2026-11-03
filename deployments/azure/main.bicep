@@ -142,10 +142,22 @@ if ! command -v nginx >/dev/null 2>&1; then
   apt-get update
   apt-get install -y nginx
 fi
-printf '%s' '{9}' | base64 -d > /etc/nginx/sites-available/me-lab-http.conf
 rm -f /etc/nginx/sites-enabled/default
-ln -sfn /etc/nginx/sites-available/me-lab-http.conf /etc/nginx/sites-enabled/me-lab-http.conf
-nginx -t
+if [ -s /etc/nginx/sites-available/me-lab.conf ]; then
+  ln -sfn /etc/nginx/sites-available/me-lab.conf /etc/nginx/sites-enabled/me-lab.conf
+  if nginx -t; then
+    echo 'Preserving existing valid Nginx TLS configuration.'
+  else
+    rm -f /etc/nginx/sites-enabled/me-lab.conf
+    printf '%s' '{9}' | base64 -d > /etc/nginx/sites-available/me-lab-http.conf
+    ln -sfn /etc/nginx/sites-available/me-lab-http.conf /etc/nginx/sites-enabled/me-lab-http.conf
+    nginx -t
+  fi
+else
+  printf '%s' '{9}' | base64 -d > /etc/nginx/sites-available/me-lab-http.conf
+  ln -sfn /etc/nginx/sites-available/me-lab-http.conf /etc/nginx/sites-enabled/me-lab-http.conf
+  nginx -t
+fi
 systemctl enable --now nginx
 systemctl reload nginx
 mkdir -p /opt/me-lab/deployments/azure

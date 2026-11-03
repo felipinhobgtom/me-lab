@@ -122,6 +122,7 @@ Configure these GitHub **environment variables** in the `production` environment
 | `AZURE_SSH_ALLOWED_CIDR` | Operator IP/CIDR allowed on port 22 |
 | `AZURE_DNS_LABEL_PREFIX` | Public Azure DNS label |
 | `PUBLIC_BASE_URL` | Optional public URL used by the readiness check; set it to the HTTPS URL after TLS is configured |
+| `AZURE_TLS_READY` | Set to `true` only after the HTTPS certificate and Nginx TLS config are installed; defaults to HTTP readiness |
 
 Configure these **secrets**:
 
