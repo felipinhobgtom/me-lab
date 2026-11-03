@@ -580,6 +580,18 @@ export function SimulationConsole() {
                               {cell.types_used} / {cell.types_total}
                             </span>
                           </div>
+                          <div className="telemetry-cell-items" aria-label="Cell contents">
+                            {cell.items.length === 0 ? (
+                              <span className="telemetry-muted">Empty cell</span>
+                            ) : (
+                              cell.items.map((item) => (
+                                <div key={item.item_id} className="telemetry-kv">
+                                  <span className="mono">{item.item_id}</span>
+                                  <span>×{item.quantity}</span>
+                                </div>
+                              ))
+                            )}
+                          </div>
                         </div>
                       )
                     })}

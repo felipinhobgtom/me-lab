@@ -24,8 +24,9 @@ export function BlockInspector() {
   const selectedBlockIds = useEditorStore((s) => s.selectedBlockIds)
   const simulationRun = useEditorStore((s) => s.simulationRun)
   const validationResult = useEditorStore((s) => s.validationResult)
-
   const updateBlockFields = useEditorStore((s) => s.updateBlockFields)
+  const addStorageCell = useEditorStore((s) => s.addStorageCell)
+  const removeStorageCell = useEditorStore((s) => s.removeStorageCell)
   const rotateSelectedOrPlacement = useEditorStore((s) => s.rotateSelectedOrPlacement)
   const removeBlocks = useEditorStore((s) => s.removeBlocks)
 
@@ -160,7 +161,9 @@ export function BlockInspector() {
   )
   const cableCfg = showCableSection ? readCableConfig(primaryBlock.config) : null
   const driveCfg =
-    primaryBlock.block_def_id === 'ae2:drive'
+    primaryDef?.behavior_key === 'drive' ||
+    primaryBlock.block_def_id === 'ae2:drive' ||
+    primaryBlock.block_def_id === 'ae2:chest'
       ? readDriveConfig(primaryBlock.config)
       : null
   const providerCfg =
@@ -366,21 +369,19 @@ export function BlockInspector() {
 
             <div className="sub-editor-header">
               <span style={{ fontSize: 11, fontWeight: 600 }}>
-                Cells ({driveCfg.cells.length}/10)
+                Cells ({driveCfg.cells.length}/
+                {primaryBlock.block_def_id === 'ae2:chest' ? 1 : 10})
               </span>
               <button
                 type="button"
                 className="btn btn-certus"
-                disabled={driveCfg.cells.length >= 10}
-                onClick={() => {
-                  const nextCells: DriveCellConfig[] = [
-                    ...driveCfg.cells,
-                    { tier: '4k', partition: [], inverter: false, items: [] },
-                  ]
-                  patchConfig({ cells: nextCells })
-                }}
+                disabled={
+                  driveCfg.cells.length >=
+                  (primaryBlock.block_def_id === 'ae2:chest' ? 1 : 10)
+                }
+                onClick={() => addStorageCell(primaryBlock.id)}
               >
-                + Add Cell
+                + Add Storage Cell
               </button>
             </div>
 
@@ -405,10 +406,13 @@ export function BlockInspector() {
                   <button
                     type="button"
                     className="btn btn-danger"
-                    onClick={() => {
-                      const next = driveCfg.cells.filter((_, idx) => idx !== cellIdx)
-                      patchConfig({ cells: next })
-                    }}
+                    disabled={cell.items.length > 0}
+                    title={
+                      cell.items.length > 0
+                        ? 'Empty the storage cell before removing it'
+                        : 'Remove empty storage cell'
+                    }
+                    onClick={() => removeStorageCell(primaryBlock.id, cellIdx)}
                   >
                     Remove
                   </button>

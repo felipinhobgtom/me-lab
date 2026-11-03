@@ -80,6 +80,7 @@ export function EditorLayout() {
   const pasteClipboard = useEditorStore((s) => s.pasteClipboard)
   const duplicateSelected = useEditorStore((s) => s.duplicateSelected)
   const rotateSelectedOrPlacement = useEditorStore((s) => s.rotateSelectedOrPlacement)
+  const addStorageCell = useEditorStore((s) => s.addStorageCell)
   const removeBlocks = useEditorStore((s) => s.removeBlocks)
   const clearAllBlocks = useEditorStore((s) => s.clearAllBlocks)
   const loadPresetOperations = useEditorStore((s) => s.loadPresetOperations)
@@ -372,14 +373,21 @@ export function EditorLayout() {
     setBlockContextMenu({
       blockId,
       x: Math.min(Math.max(8, x), Math.max(8, window.innerWidth - 196)),
-      y: Math.min(Math.max(8, y), Math.max(8, window.innerHeight - 190)),
+      y: Math.min(Math.max(8, y), Math.max(8, window.innerHeight - 250)),
     })
   }
 
-  const handleContextAction = (action: 'properties' | 'rotate' | 'duplicate' | 'remove') => {
+  const isContextStorageDrive = contextBlockDef?.behavior_key === 'drive'
+
+  const handleContextAction = (
+    action: 'properties' | 'open-drive' | 'add-cell' | 'rotate' | 'duplicate' | 'remove'
+  ) => {
     if (!blockContextMenu) return
     selectBlock(blockContextMenu.blockId, false)
-    if (action === 'properties') {
+    if (action === 'properties' || action === 'open-drive') {
+      setInspectorOpen(true)
+    } else if (action === 'add-cell') {
+      addStorageCell(blockContextMenu.blockId)
       setInspectorOpen(true)
     } else if (action === 'rotate') {
       rotateSelectedOrPlacement()
@@ -505,10 +513,21 @@ export function EditorLayout() {
           <button
             type="button"
             role="menuitem"
-            onClick={() => handleContextAction('properties')}
+            onClick={() =>
+              handleContextAction(isContextStorageDrive ? 'open-drive' : 'properties')
+            }
           >
-            Properties
+            {isContextStorageDrive ? 'Open ME Drive' : 'Properties'}
           </button>
+          {isContextStorageDrive && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => handleContextAction('add-cell')}
+            >
+              Add Storage Cell
+            </button>
+          )}
           <button type="button" role="menuitem" onClick={() => handleContextAction('rotate')}>
             Rotate
           </button>

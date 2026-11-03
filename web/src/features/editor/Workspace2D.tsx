@@ -76,8 +76,8 @@ export function Workspace2D({ fallbackNotice, onBlockContextMenu }: Workspace2DP
 
   const placeBlockAt = useEditorStore((s) => s.placeBlockAt)
   const selectBlock = useEditorStore((s) => s.selectBlock)
+  const setInspectorOpen = useEditorStore((s) => s.setInspectorOpen)
   const clearSelection = useEditorStore((s) => s.clearSelection)
-
   const [hoverCoord, setHoverCoord] = useState<{ x: number; z: number } | null>(null)
 
   const catalogMap = useMemo(() => {
@@ -196,6 +196,17 @@ export function Workspace2D({ fallbackNotice, onBlockContextMenu }: Workspace2DP
     onBlockContextMenu?.(block.id, e.clientX, e.clientY)
   }
 
+  const handleCellDoubleClick = (
+    e: MouseEvent<HTMLButtonElement>,
+    block: PlacedBlock | undefined
+  ) => {
+    if (!block) return
+    e.preventDefault()
+    e.stopPropagation()
+    selectBlock(block.id, false)
+    setInspectorOpen(true)
+  }
+
   return (
     <div className="workspace-2d" data-testid="workspace-2d">
       <div className="workspace-2d-hud">
@@ -287,6 +298,7 @@ export function Workspace2D({ fallbackNotice, onBlockContextMenu }: Workspace2DP
                     onMouseEnter={() => setHoverCoord({ x, z })}
                     onMouseLeave={() => setHoverCoord(null)}
                     onClick={(e) => handleCellClick(e, x, z, block)}
+                    onDoubleClick={(e) => handleCellDoubleClick(e, block)}
                     onContextMenu={(e) => handleCellContextMenu(e, block)}
                   >
                     {!block && otherYs && otherYs.length > 0 && (

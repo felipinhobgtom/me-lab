@@ -2,6 +2,7 @@ package http
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -259,6 +260,83 @@ func validateCoords(x, y, z int) bool {
 		z >= -maxGridCoord && z <= maxGridCoord
 }
 
+func validateStorageConfig(blockDefID string, cfg map[string]any) string {
+	if blockDefID != "ae2:drive" && blockDefID != "ae2:chest" {
+		return ""
+	}
+	rawCells, present := cfg["cells"]
+	if !present {
+		return ""
+	}
+	cells, ok := rawCells.([]any)
+	if !ok {
+		return "config.cells must be an array"
+	}
+	maxCells := 10
+	if blockDefID == "ae2:chest" {
+		maxCells = 1
+	}
+	if len(cells) > maxCells {
+		return fmt.Sprintf("config.cells cannot contain more than %d storage cells", maxCells)
+	}
+	validTiers := map[string]bool{
+		"1k": true, "4k": true, "16k": true, "64k": true, "256k": true,
+	}
+	for cellIndex, rawCell := range cells {
+		cell, ok := rawCell.(map[string]any)
+		if !ok {
+			return fmt.Sprintf("config.cells[%d] must be an object", cellIndex)
+		}
+		if tier, exists := cell["tier"]; exists {
+			tierName, ok := tier.(string)
+			if !ok || !validTiers[tierName] {
+				return fmt.Sprintf("config.cells[%d].tier is invalid", cellIndex)
+			}
+		}
+		rawItems, exists := cell["items"]
+		if !exists {
+			continue
+		}
+		items, ok := rawItems.([]any)
+		if !ok {
+			return fmt.Sprintf("config.cells[%d].items must be an array", cellIndex)
+		}
+		seenTypes := map[string]struct{}{}
+		for itemIndex, rawItem := range items {
+			item, ok := rawItem.(map[string]any)
+			if !ok {
+				return fmt.Sprintf("config.cells[%d].items[%d] must be an object", cellIndex, itemIndex)
+			}
+			itemID, ok := item["item_id"].(string)
+			if !ok || strings.TrimSpace(itemID) == "" {
+				return fmt.Sprintf("config.cells[%d].items[%d].item_id is required", cellIndex, itemIndex)
+			}
+			itemID = strings.TrimSpace(itemID)
+			if _, exists := seenTypes[itemID]; !exists {
+				if len(seenTypes) >= 63 {
+					return fmt.Sprintf("config.cells[%d].items cannot contain more than 63 types", cellIndex)
+				}
+				seenTypes[itemID] = struct{}{}
+			}
+			if _, ok := positiveStorageQuantity(item["quantity"]); !ok {
+				return fmt.Sprintf("config.cells[%d].items[%d].quantity must be a positive integer", cellIndex, itemIndex)
+			}
+		}
+	}
+	return ""
+}
+
+func positiveStorageQuantity(value any) (int, bool) {
+	quantity, ok := asInt(value)
+	if !ok || quantity < 1 {
+		return 0, false
+	}
+	if raw, isFloat := value.(float64); isFloat && raw != float64(quantity) {
+		return 0, false
+	}
+	return quantity, true
+}
+
 func (s *Server) handlePlaceBlock(w http.ResponseWriter, r *http.Request) {
 	project, ok := s.loadOwnedProject(w, r, chi.URLParam(r, "projectId"))
 	if !ok {
@@ -299,6 +377,11 @@ func (s *Server) handlePlaceBlock(w http.ResponseWriter, r *http.Request) {
 	cfg := req.Config
 	if cfg == nil {
 		cfg = map[string]any{}
+	}
+	blockDefID := strings.TrimSpace(req.BlockDefID)
+	if configErr := validateStorageConfig(blockDefID, cfg); configErr != "" {
+		RespondValidationError(w, r, map[string]any{"config": configErr})
+		return
 	}
 
 	now := time.Now().UTC()
@@ -383,6 +466,10 @@ func (s *Server) handleUpdateBlock(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Config != nil {
 		existing.Config = req.Config
+	}
+	if configErr := validateStorageConfig(existing.BlockDefID, existing.Config); configErr != "" {
+		RespondValidationError(w, r, map[string]any{"config": configErr})
+		return
 	}
 	if req.Label != nil {
 		if len(*req.Label) > 120 {
@@ -519,6 +606,13 @@ func (s *Server) handleBatchBlocks(w http.ResponseWriter, r *http.Request) {
 			if cfg == nil {
 				cfg = map[string]any{}
 			}
+			if configErr := validateStorageConfig(blockDefID, cfg); configErr != "" {
+				RespondValidationError(w, r, map[string]any{
+					"operations": configErr,
+					"index":      i,
+				})
+				return
+			}
 			ops = append(ops, sqlite.BatchOperation{
 				Op:         sqlite.BatchOpCreate,
 				ID:         blockID,
@@ -572,6 +666,13 @@ func (s *Server) handleBatchBlocks(w http.ResponseWriter, r *http.Request) {
 			}
 			if cfg == nil {
 				cfg = existing.Config
+			}
+			if configErr := validateStorageConfig(blockDefID, cfg); configErr != "" {
+				RespondValidationError(w, r, map[string]any{
+					"operations": configErr,
+					"index":      i,
+				})
+				return
 			}
 			if label == "" && item.Data != nil {
 				if _, hasLbl := item.Data["label"]; !hasLbl {

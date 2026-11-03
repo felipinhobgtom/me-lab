@@ -238,6 +238,12 @@ export function defaultConfigForBlock(
     case 'ae2:dense_energy_cell':
       return { initial_charge_pct: 100 }
     case 'ae2:drive':
+      return {
+        priority: 0,
+        // An ME Drive starts with ten empty slots; a storage cell is inserted
+        // explicitly, matching the in-game inventory.
+        cells: [],
+      }
     case 'ae2:chest':
       return {
         priority: 0,

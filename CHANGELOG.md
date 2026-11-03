@@ -5,6 +5,8 @@ All notable changes to **ME Lab — AE2 Network Designer & Simulator** are docum
 ## [Unreleased]
 
 ### Added
+- ME Drive storage-cell workflow: empty drives now expose the official ten-slot inventory, cells can be added from the context menu or ME Drive inspector, double-click opens the same configuration, configured cell item stacks remain real simulation storage, and non-empty cells cannot be silently discarded.
+- Backend validation now enforces AE2 storage-cell tiers, ten-cell ME Drive limit, one-cell ME Chest limit, positive quantities, and the 63 distinct-type cell limit. Sources: [ME Drive](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/drive/), [Storage Cells](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/storage_cells/), [Bytes and Types](https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/bytes-and-types/).
 - Powered AE2 automation: Energy Cells/acceptors now gate device service, Import/Export Bus transfers, filters, inverter and acceleration settings, bus telemetry, and deterministic `bus_transfer` events.
 - API overlay for per-device online status, automation buses, and external inventories.
 - Minecraft chest renderer now separates body, lid, side, top, and bottom pixel textures instead of reusing the wooden-plank texture across all faces.

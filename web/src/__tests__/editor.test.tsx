@@ -49,12 +49,15 @@ function def(id: string, name: string, category: string, extra: Partial<BlockDef
   } as BlockDefinition
 }
 
+const driveDefinition = def('ae2:drive', 'ME Drive', 'storage')
+driveDefinition.behavior_key = 'drive'
+
 const catalog: BlockDefinition[] = [
   def('ae2:controller', 'ME Controller', 'network'),
   def('ae2:smart_cable', 'ME Smart Cable', 'cables', { is_cable: true, is_smart_cable: true, channel_capacity: 8, transmits_channels: true }),
   def('ae2:crafting_terminal', 'ME Crafting Terminal', 'storage', { channel_usage: 1 }),
+  driveDefinition,
 ]
-
 function mockBackend(initialBlocks: PlacedBlock[] = []) {
   vi.spyOn(api, 'listProfiles').mockResolvedValue([
     {
@@ -132,6 +135,56 @@ describe('ME Lab zero-login AE2 sandbox', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
     expect(useEditorStore.getState().blocks).toHaveLength(0)
     expect(useEditorStore.getState().selectedBlockIds).not.toContain(placed.id)
+  })
+
+  it('opens ME Drive storage controls and adds real storage cells from context or double click', async () => {
+    mockBackend()
+    renderApp()
+    await screen.findByText(/Empty Sandbox/i)
+
+    const state = useEditorStore.getState()
+    state.setViewMode('2d')
+    state.setActiveBlockDefId('ae2:drive')
+    const placed = state.placeBlockAt({ x: 0, y: 0, z: 0 }, 'south')!
+    expect(placed.config.cells).toEqual([])
+    await waitFor(() => expect(screen.getByTestId('grid-cell-0-0-0')).toHaveClass('selected'))
+
+    fireEvent.contextMenu(screen.getByTestId('grid-cell-0-0-0'), {
+      clientX: 120,
+      clientY: 140,
+    })
+    await waitFor(() =>
+      expect(screen.getByRole('menuitem', { name: 'Add Storage Cell' })).toBeInTheDocument()
+    )
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Storage Cell' }))
+    expect(useEditorStore.getState().blocks[0].config.cells).toHaveLength(1)
+    expect(screen.getByText('ME Drive & Storage Cells')).toBeInTheDocument()
+
+    state.updateBlockFields(placed.id, {
+      config: {
+        priority: 0,
+        cells: [
+          {
+            tier: '4k',
+            partition: [],
+            inverter: false,
+            items: [{ item_id: 'minecraft:iron_ingot', quantity: 64 }],
+          },
+        ],
+      },
+    })
+    expect(state.removeStorageCell(placed.id, 0)).toBe(false)
+    state.updateBlockFields(placed.id, {
+      config: {
+        priority: 0,
+        cells: [{ tier: '4k', partition: [], inverter: false, items: [] }],
+      },
+    })
+    expect(state.removeStorageCell(placed.id, 0)).toBe(true)
+
+    state.addStorageCell(placed.id)
+    fireEvent.doubleClick(screen.getByTestId('grid-cell-0-0-0'))
+    expect(screen.getByText('ME Drive & Storage Cells')).toBeInTheDocument()
   })
 
   it('reuses the remembered sandbox project instead of creating a new one', async () => {

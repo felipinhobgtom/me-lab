@@ -110,6 +110,16 @@ $$B_{\text{used}} = k \cdot B_{\text{type}} + \sum_{i=1}^{k} \left\lceil \frac{q
 1. Online `ae2:drive` blocks are ordered by descending `priority`, then deterministic coordinate `(Y, Z, X)` and cell slot index.
 2. Cells with a non-empty `partition` list act as a **whitelist** when `inverter == false` ($x \in \text{partition}$) or a **blacklist** when `inverter == true` ($x \notin \text{partition}$).
 
+
+**ME Drive editor contract (Minecraft 1.21.1 / AE2 19.x):**
+- An ME Drive exposes exactly ten slots and starts with no implicit storage cell. A cell is added explicitly through the inspector or the block context menu; double-clicking the drive opens the same configuration surface.
+- Each configured slot is a real item storage cell in the simulation snapshot. Its tier, partition, inverter state, and initial item stacks are persisted in `project_blocks.configuration_json`, then loaded into mutable runtime cell state for insertion/extraction and automation.
+- The editor refuses to remove a configured cell while it contains items instead of silently discarding its contents. Runtime storage follows the documented priority, partition, 63-type, byte-capacity, power, and channel rules above.
+
+Consulted version-matched sources for this contract:
+- [The ME Drive](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/drive/)
+- [Storage Cells](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/storage_cells/)
+- [Bytes and Types](https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/bytes-and-types/)
 ### 2.6 Crafting CPU Multiblocks & Recursive Autocrafting
 Ref: [Autocrafting](https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/autocrafting) & [Crafting CPU](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/crafting_cpu_multiblock)
 

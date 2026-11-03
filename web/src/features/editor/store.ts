@@ -23,6 +23,7 @@ import {
   isCableBlockId,
   isDenseCableBlockId,
   readCableConfig,
+  readDriveConfig,
   rotateDirectionClockwise,
 } from '../../lib/ae2/constants'
 
@@ -144,6 +145,8 @@ export interface EditorState {
       config?: Record<string, unknown>
     }
   ) => void
+  addStorageCell: (blockId: string) => boolean
+  removeStorageCell: (blockId: string, slot: number) => boolean
   copySelected: () => void
   pasteClipboard: (targetOrigin?: Coord3D) => void
   duplicateSelected: () => void
@@ -622,6 +625,83 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       saveStatus: 'unsaved',
       saveError: null,
     })
+  },
+
+  addStorageCell: (blockId) => {
+    const state = get()
+    const idx = state.blocks.findIndex((block) => block.id === blockId)
+    if (idx === -1) {
+      return false
+    }
+    const target = state.blocks[idx]
+    if (target.block_def_id !== 'ae2:drive' && target.block_def_id !== 'ae2:chest') {
+      return false
+    }
+    const current = readDriveConfig(target.config)
+    const maxCells = target.block_def_id === 'ae2:chest' ? 1 : 10
+    if (current.cells.length >= maxCells) {
+      return false
+    }
+    const nextPast = [...state.past, structuredClone(state.blocks)].slice(-MAX_HISTORY)
+    const nextBlocks = [...state.blocks]
+    nextBlocks[idx] = {
+      ...target,
+      config: {
+        ...target.config,
+        priority: current.priority,
+        cells: [
+          ...current.cells,
+          { tier: '4k', partition: [], inverter: false, items: [] },
+        ],
+      },
+      updated_at: new Date().toISOString(),
+    }
+    set({
+      past: nextPast,
+      future: [],
+      blocks: nextBlocks,
+      saveStatus: 'unsaved',
+      saveError: null,
+    })
+    return true
+  },
+
+  removeStorageCell: (blockId, slot) => {
+    const state = get()
+    const idx = state.blocks.findIndex((block) => block.id === blockId)
+    if (idx === -1) {
+      return false
+    }
+    const target = state.blocks[idx]
+    if (target.block_def_id !== 'ae2:drive' && target.block_def_id !== 'ae2:chest') {
+      return false
+    }
+    const current = readDriveConfig(target.config)
+    const cell = current.cells[slot]
+    // A configured cell is the storage item in the drive. Do not silently
+    // destroy its contents when the slot is removed from the layout.
+    if (!cell || cell.items.length > 0) {
+      return false
+    }
+    const nextPast = [...state.past, structuredClone(state.blocks)].slice(-MAX_HISTORY)
+    const nextBlocks = [...state.blocks]
+    nextBlocks[idx] = {
+      ...target,
+      config: {
+        ...target.config,
+        priority: current.priority,
+        cells: current.cells.filter((_, index) => index !== slot),
+      },
+      updated_at: new Date().toISOString(),
+    }
+    set({
+      past: nextPast,
+      future: [],
+      blocks: nextBlocks,
+      saveStatus: 'unsaved',
+      saveError: null,
+    })
+    return true
   },
 
   copySelected: () => {
