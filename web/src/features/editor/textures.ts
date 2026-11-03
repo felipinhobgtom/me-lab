@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import type { CableColor } from '@/lib/ae2/constants'
 
 const textureCache = new Map<string, THREE.Texture>()
+const textureRegionCache = new Map<string, THREE.Texture>()
+const chestTextureCache = new Map<string, THREE.CanvasTexture>()
 const terminalScreenCache = new Map<string, THREE.CanvasTexture>()
 const loader = new THREE.TextureLoader()
 
@@ -13,6 +15,106 @@ function configurePixelTexture(tex: THREE.Texture): THREE.Texture {
   tex.needsUpdate = true
   return tex
 }
+export function loadPixelTextureRegion(
+  url: string,
+  row: number,
+  rowCount: number
+): THREE.Texture {
+  const key = `${url}#row=${row}/${rowCount}`
+  const existing = textureRegionCache.get(key)
+  if (existing) {
+    return existing
+  }
+  const texture = loadPixelTexture(url).clone()
+  texture.repeat.set(1, 1 / rowCount)
+  texture.offset.set(0, (rowCount - row - 1) / rowCount)
+  texture.wrapS = THREE.ClampToEdgeWrapping
+  texture.wrapT = THREE.ClampToEdgeWrapping
+  texture.needsUpdate = true
+  textureRegionCache.set(key, texture)
+  return texture
+}
+
+export type MinecraftChestTextureFace = 'front' | 'side' | 'top'
+
+export function getMinecraftChestTexture(face: MinecraftChestTextureFace): THREE.CanvasTexture {
+  const existing = chestTextureCache.get(face)
+  if (existing) {
+    return existing
+  }
+
+  const canvas = document.createElement('canvas')
+  canvas.width = 16
+  canvas.height = 16
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    const fallback = new THREE.CanvasTexture(canvas)
+    configurePixelTexture(fallback)
+    chestTextureCache.set(face, fallback)
+    return fallback
+  }
+
+  ctx.imageSmoothingEnabled = false
+  ctx.fillStyle = face === 'top' ? '#b8793d' : '#9b5f2d'
+  ctx.fillRect(0, 0, 16, 16)
+
+  if (face === 'front') {
+    ctx.fillStyle = '#d0924b'
+    ctx.fillRect(1, 2, 14, 5)
+    ctx.fillRect(1, 9, 14, 5)
+    ctx.fillStyle = '#4a2914'
+    ctx.fillRect(0, 0, 16, 2)
+    ctx.fillRect(0, 7, 16, 2)
+    ctx.fillRect(0, 14, 16, 2)
+    ctx.fillRect(0, 0, 1, 16)
+    ctx.fillRect(15, 0, 1, 16)
+    ctx.fillStyle = '#6f3d1b'
+    ctx.fillRect(4, 2, 1, 5)
+    ctx.fillRect(11, 2, 1, 5)
+    ctx.fillRect(4, 9, 1, 5)
+    ctx.fillRect(11, 9, 1, 5)
+    ctx.fillStyle = '#2a1b10'
+    ctx.fillRect(7, 8, 2, 5)
+    ctx.fillStyle = '#d6a33c'
+    ctx.fillRect(7, 8, 2, 3)
+    ctx.fillStyle = '#f0c85c'
+    ctx.fillRect(8, 8, 1, 2)
+  } else if (face === 'side') {
+    ctx.fillStyle = '#4a2914'
+    ctx.fillRect(0, 0, 16, 2)
+    ctx.fillRect(0, 7, 16, 2)
+    ctx.fillRect(0, 14, 16, 2)
+    ctx.fillRect(0, 0, 1, 16)
+    ctx.fillRect(15, 0, 1, 16)
+    ctx.fillStyle = '#c47d3b'
+    ctx.fillRect(2, 2, 12, 5)
+    ctx.fillRect(2, 9, 12, 5)
+    ctx.fillStyle = '#70401d'
+    ctx.fillRect(5, 2, 1, 5)
+    ctx.fillRect(10, 2, 1, 5)
+    ctx.fillRect(5, 9, 1, 5)
+    ctx.fillRect(10, 9, 1, 5)
+  } else {
+    ctx.fillStyle = '#4a2914'
+    ctx.fillRect(0, 0, 16, 1)
+    ctx.fillRect(0, 15, 16, 1)
+    ctx.fillRect(0, 0, 1, 16)
+    ctx.fillRect(15, 0, 1, 16)
+    ctx.fillRect(7, 1, 2, 14)
+    ctx.fillStyle = '#d0924b'
+    ctx.fillRect(2, 2, 5, 12)
+    ctx.fillRect(9, 2, 5, 12)
+    ctx.fillStyle = '#70401d'
+    ctx.fillRect(3, 5, 1, 5)
+    ctx.fillRect(11, 5, 1, 5)
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  configurePixelTexture(texture)
+  chestTextureCache.set(face, texture)
+  return texture
+}
+
 
 export function loadPixelTexture(url: string): THREE.Texture {
   const existing = textureCache.get(url)

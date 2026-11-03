@@ -12,10 +12,12 @@ import {
 } from '@/lib/ae2/constants'
 import {
   cableColorToAssetName,
+  getMinecraftChestTexture,
   getTerminalScreenTexture,
   loadPixelTexture,
-} from './textures'
+  loadPixelTextureRegion,
 
+} from './textures'
 /**
  * Three.js BoxGeometry material index order:
  * 0: +X (east), 1: -X (west), 2: +Y (up), 3: -Y (down), 4: +Z (south), 5: -Z (north)
@@ -484,10 +486,12 @@ export function VoxelBlockModel({
           ? '/textures/ae2/block/controller_column.png'
           : '/textures/ae2/block/controller.png'
     )
-    const lightsTex = loadPixelTexture(
+    const lightsTex = loadPixelTextureRegion(
       isColumn
         ? '/textures/ae2/block/controller_column_lights.png'
-        : '/textures/ae2/block/controller_lights.png'
+        : '/textures/ae2/block/controller_lights.png',
+      0,
+      12
     )
     const capTex = loadPixelTexture('/textures/ae2/block/controller.png')
 
@@ -850,8 +854,19 @@ export function VoxelBlockModel({
   }
 
   if (id === 'minecraft:chest') {
-    const oakTex = loadPixelTexture('/textures/minecraft/block/oak_planks.png')
-    const ironTex = loadPixelTexture('/textures/minecraft/block/iron_block.png')
+    const frontTex = getMinecraftChestTexture('front')
+    const sideTex = getMinecraftChestTexture('side')
+    const topTex = getMinecraftChestTexture('top')
+    const chestMats = buildCubeMaterials({
+      north: sideTex,
+      south: frontTex,
+      east: sideTex,
+      west: sideTex,
+      up: topTex,
+      down: sideTex,
+      opacity,
+      transparent: isGhost,
+    })
     const yaw =
       block.facing === 'north'
         ? Math.PI
@@ -862,29 +877,17 @@ export function VoxelBlockModel({
             : 0
     return (
       <group rotation={[0, yaw, 0]}>
-        <mesh position={[0, -0.08, 0]}>
+        <mesh position={[0, -0.08, 0]} material={chestMats}>
           <boxGeometry args={[0.86, 0.58, 0.82]} />
-          <meshStandardMaterial
-            map={oakTex}
-            roughness={0.9}
-            transparent={isGhost}
-            opacity={opacity}
-          />
         </mesh>
-        <mesh position={[0, 0.3, 0]}>
+        <mesh position={[0, 0.3, 0]} material={chestMats}>
           <boxGeometry args={[0.86, 0.18, 0.82]} />
-          <meshStandardMaterial
-            map={oakTex}
-            roughness={0.9}
-            transparent={isGhost}
-            opacity={opacity}
-          />
         </mesh>
         <mesh position={[0, 0.03, 0.425]}>
           <boxGeometry args={[0.12, 0.18, 0.05]} />
           <meshStandardMaterial
-            map={ironTex}
-            metalness={0.7}
+            color="#d6a33c"
+            metalness={0.65}
             roughness={0.35}
             transparent={isGhost}
             opacity={opacity}
