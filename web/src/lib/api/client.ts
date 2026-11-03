@@ -731,6 +731,10 @@ export class ApiClient {
     return this.request<SimulationRun>('GET', `/simulations/${simId}`)
   }
 
+  async queueCrafting(simId: string, request: CraftingRequest): Promise<SimulationRun> {
+    return this.request<SimulationRun>('POST', `/simulations/${simId}/craft`, request)
+  }
+
   async stepSimulation(simId: string, ticks = 1): Promise<SimulationStepResult> {
     return this.request<SimulationStepResult>('POST', `/simulations/${simId}/step`, { ticks })
   }

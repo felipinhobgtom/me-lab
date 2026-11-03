@@ -6,6 +6,7 @@ import { api } from '../lib/api'
 import type {
   BlockDefinition,
   CompatibilityProfile,
+  PatternSpec,
   PlacedBlock,
   Project,
   SimulationRun,
@@ -70,6 +71,8 @@ const catalog: BlockDefinition[] = [
     transmits_channels: true,
   }),
   def('ae2:crafting_terminal', 'ME Crafting Terminal', 'storage', { channel_usage: 1 }),
+  def('ae2:pattern_encoding_terminal', 'ME Pattern Encoding Terminal', 'storage', { channel_usage: 1 }),
+  def('ae2:pattern_provider', 'ME Pattern Provider', 'crafting', { channel_usage: 1 }),
   driveDefinition,
   def('minecraft:furnace', 'Furnace', 'machines'),
   def('minecraft:chest', 'Chest', 'machines'),
@@ -140,6 +143,7 @@ function mockBackend(initialBlocks: PlacedBlock[] = []) {
     started_at: '2026-01-01T00:00:00Z',
   }
   const createSimulation = vi.spyOn(api, 'createSimulation').mockResolvedValue(runtime)
+  const queueCrafting = vi.spyOn(api, 'queueCrafting').mockResolvedValue(runtime)
   vi.spyOn(api, 'getSimulationEvents').mockResolvedValue({
     data: [],
     pagination: { page: 1, page_size: 100, total: 0 },
@@ -153,7 +157,7 @@ function mockBackend(initialBlocks: PlacedBlock[] = []) {
       state: { ...runtime, current_tick: ticks },
     }),
   )
-  return { getProject, createProject, batch, createSimulation, stepSimulation }
+  return { getProject, createProject, batch, createSimulation, queueCrafting, stepSimulation, runtime }
 }
 
 function renderApp() {
@@ -379,6 +383,112 @@ describe('ME Lab zero-login AE2 sandbox', () => {
     ])
   })
 
+  it('opens the ME Crafting Terminal and queues a live crafting request', async () => {
+    const { queueCrafting, runtime } = mockBackend([
+      {
+        id: 'ct',
+        project_id: project.id,
+        block_def_id: 'ae2:crafting_terminal',
+        x: 0,
+        y: 0,
+        z: 0,
+        facing: 'south',
+        config: {},
+        created_at: project.created_at,
+        updated_at: project.updated_at,
+      },
+      {
+        id: 'pp',
+        project_id: project.id,
+        block_def_id: 'ae2:pattern_provider',
+        x: 1,
+        y: 0,
+        z: 0,
+        facing: 'south',
+        config: {
+          patterns: [
+            {
+              id: 'pat-planks',
+              pattern_type: 'crafting',
+              inputs: [{ item_id: 'minecraft:oak_log', quantity: 1 }],
+              outputs: [{ item_id: 'minecraft:oak_planks', quantity: 4 }],
+            },
+          ],
+        },
+        created_at: project.created_at,
+        updated_at: project.updated_at,
+      },
+    ])
+    runtime.overlay!.stored_totals = [{ item_id: 'minecraft:oak_planks', quantity: 0 }]
+    renderApp()
+    await screen.findByTestId('workspace-2d')
+
+    const state = useEditorStore.getState()
+    state.setViewMode('2d')
+    await waitFor(() => expect(screen.getByTestId('grid-cell-0-0-0')).toBeInTheDocument())
+    fireEvent.doubleClick(screen.getByTestId('grid-cell-0-0-0'))
+
+    expect(screen.getByTestId('crafting-terminal-panel')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Crafting terminal quantity'), {
+      target: { value: '3' },
+    })
+    fireEvent.click(screen.getByTestId('crafting-terminal-craft'))
+
+    await waitFor(() =>
+      expect(queueCrafting).toHaveBeenCalledWith('runtime-1', {
+        item_id: 'minecraft:oak_planks',
+        quantity: 3,
+        source: 'crafting_terminal',
+      })
+    )
+  })
+
+  it('encodes a pattern and installs it into a Pattern Provider', async () => {
+    mockBackend()
+    renderApp()
+    await screen.findByText(/Empty Sandbox/i)
+
+    const state = useEditorStore.getState()
+    state.setViewMode('2d')
+    state.setActiveBlockDefId('ae2:pattern_encoding_terminal')
+    const terminal = state.placeBlockAt({ x: 0, y: 0, z: 0 }, 'south')!
+    state.setActiveBlockDefId('ae2:pattern_provider')
+    const provider = state.placeBlockAt({ x: 1, y: 0, z: 0 }, 'south')!
+    state.selectBlock(terminal.id, false)
+    await waitFor(() => expect(screen.getByTestId('grid-cell-0-0-0')).toHaveClass('selected'))
+    fireEvent.doubleClick(screen.getByTestId('grid-cell-0-0-0'))
+
+    fireEvent.click(screen.getByTestId('pattern-encoding-insert'))
+    fireEvent.change(screen.getByLabelText('Encoding inputs item 1 ID'), {
+      target: { value: 'minecraft:oak_log' },
+    })
+    fireEvent.change(screen.getByLabelText('Encoding outputs item 1 ID'), {
+      target: { value: 'minecraft:oak_planks' },
+    })
+    fireEvent.click(screen.getByTestId('pattern-encoding-encode'))
+
+    const encoded = useEditorStore.getState().blocks.find((block) => block.id === terminal.id)?.config
+      .encoded_patterns as PatternSpec[]
+    expect(encoded).toHaveLength(1)
+    expect(encoded[0]).toMatchObject({
+      pattern_type: 'crafting',
+      inputs: [{ item_id: 'minecraft:oak_log', quantity: 1 }],
+      outputs: [{ item_id: 'minecraft:oak_planks', quantity: 1 }],
+    })
+    fireEvent.change(screen.getByLabelText('Provider for encoded pattern encoded-1'), {
+      target: { value: provider.id },
+    })
+    fireEvent.click(screen.getByTestId('pattern-encoding-install'))
+    expect(
+      useEditorStore.getState().blocks.find((block) => block.id === terminal.id)?.config.encoded_patterns
+    ).toEqual([])
+    expect(
+      (
+        useEditorStore.getState().blocks.find((block) => block.id === provider.id)?.config.patterns as PatternSpec[]
+      )
+    ).toHaveLength(1)
+
+  })
   it('reuses the remembered sandbox project instead of creating a new one', async () => {
     window.localStorage.setItem('melab_sandbox_project_id', 'proj-1')
     const { createProject, getProject } = mockBackend()

@@ -301,3 +301,34 @@
   color: #fca5a5;
   font-size: 11px;
 }
+.terminal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.terminal-list-row,
+.terminal-job-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  padding: 6px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.terminal-job-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.terminal-list-row .mono,
+.terminal-job-row .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

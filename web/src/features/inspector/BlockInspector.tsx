@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ALL_DIRECTIONS,
   CABLE_COLOR_HEX,
@@ -15,6 +15,7 @@ import {
   type CableColor,
 } from '../../lib/ae2/constants'
 import type {
+  CraftingRequest,
   Direction,
   DriveCellConfig,
   ExternalInventoryView,
@@ -24,16 +25,54 @@ import type {
 import { selectActiveOverlay, useEditorStore } from '../editor/store'
 import './BlockInspector.css'
 
-function configuredStacks(config: Record<string, unknown>, key: string): ItemStack[] {
-  const raw = config[key]
+function parseSafeStacks(raw: unknown): ItemStack[] {
   if (!Array.isArray(raw)) return []
   return raw.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
-    const item = entry as { item_id?: unknown; quantity?: unknown }
-    if (typeof item.item_id !== 'string' || !item.item_id) return []
-    const quantity = typeof item.quantity === 'number' ? Math.floor(item.quantity) : 0
-    return quantity > 0 ? [{ item_id: item.item_id, quantity }] : []
+    const value = entry as { item_id?: unknown; quantity?: unknown }
+    const itemId = typeof value.item_id === 'string' ? value.item_id.trim() : ''
+    const quantity =
+      typeof value.quantity === 'number' && Number.isFinite(value.quantity)
+        ? Math.floor(value.quantity)
+        : 0
+    return itemId && quantity > 0 ? [{ item_id: itemId, quantity }] : []
   })
+}
+
+function parseEncodedPatterns(raw: unknown): PatternSpec[] {
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((entry, index) => {
+    if (!entry || typeof entry !== 'object') return []
+    const value = entry as Record<string, unknown>
+    const inputs = parseSafeStacks(value.inputs)
+    const outputs = parseSafeStacks(value.outputs)
+    const id =
+      typeof value.id === 'string' && value.id.trim()
+        ? value.id.trim()
+        : `encoded-${index + 1}`
+    const pattern_type = value.pattern_type === 'processing' ? 'processing' : 'crafting'
+    return [{ id, pattern_type, inputs, outputs }]
+  })
+}
+
+function validPatternItemId(itemId: string): boolean {
+  return /^[a-z0-9_.-]+:[a-z0-9_./-]+$/.test(itemId.trim())
+}
+
+function validPatternStacks(stacks: ItemStack[]): boolean {
+  return (
+    stacks.length > 0 &&
+    stacks.every(
+      (stack) =>
+        validPatternItemId(stack.item_id) &&
+        Number.isInteger(stack.quantity) &&
+        stack.quantity > 0
+    )
+  )
+}
+
+function configuredStacks(config: Record<string, unknown>, key: string): ItemStack[] {
+  return parseSafeStacks(config[key])
 }
 
 function addStack(items: ItemStack[], itemId: string, quantity: number): ItemStack[] {
@@ -55,6 +94,9 @@ export function BlockInspector() {
   const selectedBlockIds = useEditorStore((s) => s.selectedBlockIds)
   const simulationRun = useEditorStore((s) => s.simulationRun)
   const validationResult = useEditorStore((s) => s.validationResult)
+  const actionError = useEditorStore((s) => s.actionError)
+  const actionBusy = useEditorStore((s) => s.actionBusy)
+  const requestCrafting = useEditorStore((s) => s.requestCrafting)
   const updateBlockFields = useEditorStore((s) => s.updateBlockFields)
   const addStorageCell = useEditorStore((s) => s.addStorageCell)
   const removeStorageCell = useEditorStore((s) => s.removeStorageCell)
@@ -64,6 +106,17 @@ export function BlockInspector() {
   const [newPartitionInputs, setNewPartitionInputs] = useState<Record<number, string>>({})
   const [itemIdInput, setItemIdInput] = useState('minecraft:raw_iron')
   const [itemQuantityInput, setItemQuantityInput] = useState(1)
+  const [craftSearch, setCraftSearch] = useState('')
+  const [craftQuantity, setCraftQuantity] = useState(1)
+  const [encodingError, setEncodingError] = useState<string | null>(null)
+  const [draftType, setDraftType] = useState<'crafting' | 'processing'>('crafting')
+  const [draftInputs, setDraftInputs] = useState<ItemStack[]>([
+    { item_id: '', quantity: 1 },
+  ])
+  const [draftOutputs, setDraftOutputs] = useState<ItemStack[]>([
+    { item_id: '', quantity: 1 },
+  ])
+  const [installProviders, setInstallProviders] = useState<Record<string, string>>({})
 
   const selectedBlocks = useMemo(
     () => blocks.filter((b) => selectedBlockIds.includes(b.id)),
@@ -104,6 +157,14 @@ export function BlockInspector() {
     )
     return { cable, route }
   }, [activeOverlay, primaryBlock])
+  useEffect(() => {
+    setEncodingError(null)
+    setDraftType('crafting')
+    setDraftInputs([{ item_id: '', quantity: 1 }])
+    setDraftOutputs([{ item_id: '', quantity: 1 }])
+    setInstallProviders({})
+  }, [primaryBlock?.id, primaryBlock?.block_def_id])
+
 
   if (selectedBlocks.length === 0) {
     return (
@@ -210,6 +271,90 @@ export function BlockInspector() {
     primaryBlock.block_def_id === 'ae2:pattern_provider'
       ? readPatternProviderConfig(primaryBlock.config)
       : null
+  const isCraftingTerminal = primaryBlock.block_def_id === 'ae2:crafting_terminal'
+  const isPatternEncodingTerminal = primaryBlock.block_def_id === 'ae2:pattern_encoding_terminal'
+  const storedTotals = activeOverlay ? parseSafeStacks(activeOverlay.stored_totals) : []
+  const providerBlocks = blocks.filter((block) => block.block_def_id === 'ae2:pattern_provider')
+  const craftableItems = new Set(
+    providerBlocks.flatMap((provider) =>
+      readPatternProviderConfig(provider.config).patterns.flatMap((pattern) =>
+        pattern.outputs.map((output) => output.item_id)
+      )
+    )
+  )
+  const encodedPatterns = isPatternEncodingTerminal
+    ? parseEncodedPatterns(primaryBlock.config.encoded_patterns)
+    : []
+  const blankPatternsRaw = primaryBlock.config.blank_patterns
+  const blankPatternsNumber =
+    typeof blankPatternsRaw === 'number'
+      ? blankPatternsRaw
+      : typeof blankPatternsRaw === 'string'
+        ? Number(blankPatternsRaw)
+        : Number.NaN
+  const blankPatterns = Number.isFinite(blankPatternsNumber)
+    ? Math.max(0, Math.floor(blankPatternsNumber))
+    : 0
+  const terminalItems = Array.from(
+    new Map([
+      ...storedTotals.map((stack) => [stack.item_id, stack] as const),
+      ...Array.from(craftableItems)
+        .filter((itemId) => !storedTotals.some((stack) => stack.item_id === itemId))
+        .map((itemId) => [itemId, { item_id: itemId, quantity: 0 }] as const),
+    ])
+  ).map(([, stack]) => stack)
+  const visibleStoredTotals = terminalItems.filter((stack) =>
+    stack.item_id.toLowerCase().includes(craftSearch.trim().toLowerCase())
+  )
+  const encodePattern = () => {
+    if (blankPatterns < 1) {
+      setEncodingError('Insert a blank pattern before encoding.')
+      return
+    }
+    if (!validPatternStacks(draftInputs) || !validPatternStacks(draftOutputs)) {
+      setEncodingError('Every pattern input and output needs a valid item ID and quantity.')
+      return
+    }
+    const existingIds = new Set(encodedPatterns.map((pattern) => pattern.id))
+    let sequence = encodedPatterns.length + 1
+    let id = `encoded-${sequence}`
+    while (existingIds.has(id)) {
+      sequence += 1
+      id = `encoded-${sequence}`
+    }
+    const nextPattern: PatternSpec = {
+      id,
+      pattern_type: draftType,
+      inputs: draftInputs.map((stack) => ({ ...stack, item_id: stack.item_id.trim() })),
+      outputs: draftOutputs.map((stack) => ({ ...stack, item_id: stack.item_id.trim() })),
+    }
+    patchConfig({
+      blank_patterns: blankPatterns - 1,
+      encoded_patterns: [...encodedPatterns, nextPattern],
+    })
+    setEncodingError(null)
+    setDraftInputs([{ item_id: '', quantity: 1 }])
+    setDraftOutputs([{ item_id: '', quantity: 1 }])
+  }
+  const installPattern = (pattern: PatternSpec) => {
+    const providerId = pattern.id ? installProviders[pattern.id] : undefined
+    const provider = providerBlocks.find((candidate) => candidate.id === providerId)
+    if (!provider) {
+      setEncodingError('Choose a Pattern Provider before installing this pattern.')
+      return
+    }
+    const providerConfig = readPatternProviderConfig(provider.config)
+    updateBlockFields(provider.id, {
+      config: {
+        ...provider.config,
+        patterns: [...providerConfig.patterns, pattern],
+      },
+    })
+    patchConfig({
+      encoded_patterns: encodedPatterns.filter((candidate) => candidate.id !== pattern.id),
+    })
+    setEncodingError(null)
+  }
   const busCfg =
     primaryBlock.block_def_id === 'ae2:import_bus' ||
     primaryBlock.block_def_id === 'ae2:export_bus' ||
@@ -1069,6 +1214,267 @@ export function BlockInspector() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {isCraftingTerminal && (
+          <div className="inspector-card terminal-card" data-testid="crafting-terminal-panel">
+            <div className="inspector-section-title" data-testid="crafting-terminal">
+              ME Crafting Terminal
+            </div>
+            {!activeOverlay ? (
+              <div className="unsupported-banner" role="status">
+                Live ME runtime is offline. Start a runtime to view storage and crafting jobs.
+              </div>
+            ) : (
+              <>
+                <div className="inspector-inline-row">
+                  <input
+                    type="search"
+                    aria-label="Crafting terminal item search"
+                    data-testid="crafting-terminal-search"
+                    placeholder="Search stored items"
+                    value={craftSearch}
+                    onChange={(event) => setCraftSearch(event.target.value)}
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    aria-label="Crafting terminal quantity"
+                    data-testid="crafting-terminal-quantity"
+                    value={craftQuantity}
+                    onChange={(event) =>
+                      setCraftQuantity(Math.max(1, Number(event.target.value) || 1))
+                    }
+                  />
+                </div>
+                <div className="terminal-list" aria-label="ME stored items">
+                  {visibleStoredTotals.length === 0 ? (
+                    <span className="inspector-block-id">No stored items match this search.</span>
+                  ) : (
+                    visibleStoredTotals.map((stack) => {
+                      const canCraft = craftableItems.has(stack.item_id)
+                      return (
+                        <div className="terminal-list-row" key={stack.item_id}>
+                          <span className="mono">{stack.item_id}</span>
+                          <strong>{stack.quantity}</strong>
+                          <button
+                            type="button"
+                            className="btn"
+                            data-testid="crafting-terminal-craft"
+                            data-item-id={stack.item_id}
+                            disabled={!canCraft || actionBusy}
+                            title={
+                              canCraft
+                                ? `Craft ${stack.item_id}`
+                                : 'No pattern provider output is available for this item'
+                            }
+                            onClick={async () => {
+                              const request: CraftingRequest = {
+                                item_id: stack.item_id,
+                                quantity: craftQuantity,
+                                source: 'crafting_terminal',
+                              }
+                              await requestCrafting(request)
+                            }}
+                          >
+                            Craft
+                          </button>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+                <div className="inspector-section-title">Crafting Jobs</div>
+                {activeOverlay.crafting_jobs.length === 0 ? (
+                  <span className="inspector-block-id">No active crafting jobs.</span>
+                ) : (
+                  <div className="terminal-list" aria-label="Live crafting jobs">
+                    {activeOverlay.crafting_jobs.map((job) => (
+                      <div className="terminal-job-row" key={job.id}>
+                        <span className="mono">
+                          {job.target_item} × {job.target_quantity}
+                        </span>
+                        <span className="badge">{job.status}</span>
+                        {job.failure_reason && (
+                          <span className="inspector-block-id">{job.failure_reason}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+            {actionError && (
+              <div className="unsupported-banner" role="alert">
+                {actionError}
+              </div>
+            )}
+          </div>
+        )}
+
+        {isPatternEncodingTerminal && (
+          <div className="inspector-card terminal-card" data-testid="pattern-encoding-terminal-panel">
+            <div className="inspector-section-title" data-testid="pattern-encoding-terminal">
+              ME Pattern Encoding Terminal
+            </div>
+            <div className="sub-editor-header">
+              <span className="inspector-block-id">
+                Blank patterns: <strong>{blankPatterns}</strong>
+              </span>
+              <button
+                type="button"
+                className="btn btn-certus"
+                data-testid="pattern-encoding-insert"
+                onClick={() => patchConfig({ blank_patterns: blankPatterns + 1 })}
+              >
+                Insert Blank Pattern
+              </button>
+            </div>
+
+            <div className="sub-editor-card">
+              <div className="inspector-field">
+                <label htmlFor="pattern-encoding-type">Pattern Type</label>
+                <select
+                  id="pattern-encoding-type"
+                  aria-label="Pattern encoding type"
+                  value={draftType}
+                  onChange={(event) =>
+                    setDraftType(event.target.value === 'processing' ? 'processing' : 'crafting')
+                  }
+                >
+                  <option value="crafting">Crafting</option>
+                  <option value="processing">Processing</option>
+                </select>
+              </div>
+              {(['inputs', 'outputs'] as const).map((kind) => {
+                const rows = kind === 'inputs' ? draftInputs : draftOutputs
+                const setRows = kind === 'inputs' ? setDraftInputs : setDraftOutputs
+                return (
+                  <div className="inspector-field" key={kind}>
+                    <div className="sub-editor-header">
+                      <label>{kind === 'inputs' ? 'Inputs' : 'Outputs'}</label>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setRows([...rows, { item_id: '', quantity: 1 }])}
+                      >
+                        + {kind === 'inputs' ? 'Input' : 'Output'}
+                      </button>
+                    </div>
+                    {rows.map((stack, index) => (
+                      <div className="stack-row" key={`${kind}-${index}`}>
+                        <input
+                          type="text"
+                          aria-label={`Encoding ${kind} item ${index + 1} ID`}
+                          placeholder="modid:item"
+                          value={stack.item_id}
+                          onChange={(event) =>
+                            setRows(
+                              rows.map((entry, rowIndex) =>
+                                rowIndex === index
+                                  ? { ...entry, item_id: event.target.value }
+                                  : entry
+                              )
+                            )
+                          }
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          aria-label={`Encoding ${kind} item ${index + 1} quantity`}
+                          value={stack.quantity}
+                          onChange={(event) =>
+                            setRows(
+                              rows.map((entry, rowIndex) =>
+                                rowIndex === index
+                                  ? {
+                                      ...entry,
+                                      quantity: Math.max(1, Number(event.target.value) || 1),
+                                    }
+                                  : entry
+                              )
+                            )
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          aria-label={`Remove encoding ${kind} ${index + 1}`}
+                          onClick={() =>
+                            setRows(rows.filter((_, rowIndex) => rowIndex !== index))
+                          }
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+              <button
+                type="button"
+                className="btn btn-certus"
+                data-testid="pattern-encoding-encode"
+                disabled={blankPatterns < 1}
+                onClick={encodePattern}
+              >
+                Encode Pattern
+              </button>
+              {encodingError && (
+                <div className="unsupported-banner" role="alert">
+                  {encodingError}
+                </div>
+              )}
+            </div>
+
+            <div className="inspector-section-title">Encoded Patterns ({encodedPatterns.length})</div>
+            {encodedPatterns.length === 0 ? (
+              <span className="inspector-block-id">No encoded patterns ready to install.</span>
+            ) : (
+              encodedPatterns.map((pattern) => (
+                <div className="sub-editor-card" key={pattern.id}>
+                  <div className="sub-editor-header">
+                    <strong>{pattern.id}</strong>
+                    <span className="badge">{pattern.pattern_type}</span>
+                  </div>
+                  <div className="inspector-desc mono">
+                    {pattern.inputs.map((stack) => `${stack.item_id} × ${stack.quantity}`).join(', ')}
+                    {' → '}
+                    {pattern.outputs.map((stack) => `${stack.item_id} × ${stack.quantity}`).join(', ')}
+                  </div>
+                  <div className="inspector-inline-row">
+                    <select
+                      aria-label={`Provider for encoded pattern ${pattern.id}`}
+                      value={installProviders[pattern.id ?? ''] ?? ''}
+                      onChange={(event) =>
+                        setInstallProviders((current) => ({
+                          ...current,
+                          [pattern.id ?? '']: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">Choose Pattern Provider</option>
+                      {providerBlocks.map((provider) => (
+                        <option key={provider.id} value={provider.id}>
+                          {provider.label || provider.id} ({provider.x}, {provider.y}, {provider.z})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="btn"
+                      data-testid="pattern-encoding-install"
+                      data-pattern-id={pattern.id}
+                      disabled={providerBlocks.length === 0}
+                      onClick={() => installPattern(pattern)}
+                    >
+                      Install
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 

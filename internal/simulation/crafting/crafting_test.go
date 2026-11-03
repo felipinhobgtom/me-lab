@@ -117,6 +117,47 @@ func hasEventType(events []domain.SimulationEvent, evType string) bool {
 	return false
 }
 
+func TestEnqueueRequestAddsLiveCraftingTerminalJob(t *testing.T) {
+	profile := testCraftProfile()
+	state := &State{
+		Providers: []*ProviderState{{
+			BlockID:    "provider",
+			NetworkID:  "net-1",
+			Online:     true,
+			HasChannel: true,
+			Patterns: []domain.PatternSpec{{
+				ID:          "pat-output",
+				PatternType: "crafting",
+				Outputs:     []domain.ItemStack{{ItemID: "minecraft:oak_planks", Quantity: 1}},
+			}},
+		}},
+		CPUs: []*CPUState{{
+			ID:         "cpu",
+			NetworkID:  "net-1",
+			Online:     true,
+			HasChannel: true,
+			TotalBytes: 4096,
+		}},
+	}
+	sequence := 1
+	events, diags := state.EnqueueRequest(
+		"sim-1",
+		domain.CraftingRequest{ItemID: "minecraft:oak_planks", Quantity: 2, Source: "crafting_terminal"},
+		&storage.State{},
+		profile,
+		EventEmitter{SimulationID: "sim-1", NextSequence: &sequence},
+	)
+	if len(diags) != 0 {
+		t.Fatalf("expected no diagnostics, got %+v", diags)
+	}
+	if len(state.Jobs) != 1 || state.Jobs[0].Status != "running" {
+		t.Fatalf("expected one running queued job, got %+v", state.Jobs)
+	}
+	if !hasEventType(events, "job_created") {
+		t.Fatalf("expected job_created event, got %+v", events)
+	}
+}
+
 func TestEndToEndMultiTierCraftWithCoProcessorParallelism(t *testing.T) {
 	// Acceptance fixture: oak_log -> oak_planks (1->4) -> chest (8->1), request 2 chests!
 	// Needs 16 oak_planks = 4 batches of planks, then 2 batches of chests = 6 batches total.

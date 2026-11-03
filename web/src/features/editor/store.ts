@@ -164,6 +164,7 @@ export interface EditorState {
     craftingRequests?: CraftingRequest[],
     autoSteps?: number
   ) => Promise<SimulationRun | null>
+  requestCrafting: (request: CraftingRequest) => Promise<boolean>
   stepSimulation: (ticks?: number) => Promise<void>
   pauseSimulation: () => Promise<void>
   resumeSimulation: () => Promise<void>
@@ -990,6 +991,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         actionError: extractApiErrorMessage(err, 'Failed to start simulation'),
       })
       return null
+    }
+  },
+
+  requestCrafting: async (request) => {
+    const sim = get().simulationRun
+    if (!sim) {
+      set({ actionError: 'Live ME runtime is not ready.' })
+      return false
+    }
+    set({ actionBusy: true, actionError: null })
+    try {
+      const run = await api.queueCrafting(sim.id, request)
+      const [eventsRes, diagsRes] = await Promise.all([
+        api
+          .getSimulationEvents(sim.id, 1, 100)
+          .catch(() => ({ data: [] as SimulationEvent[], pagination: { page: 1, page_size: 100, total: 0 } })),
+        api.getSimulationDiagnostics(sim.id).catch(() => [] as Diagnostic[]),
+      ])
+      set({
+        simulationRun: run,
+        events: eventsRes.data ?? [],
+        diagnostics: diagsRes,
+        actionBusy: false,
+      })
+      return true
+    } catch (err) {
+      set({
+        actionBusy: false,
+        actionError: extractApiErrorMessage(err, 'Failed to queue crafting request'),
+      })
+      return false
     }
   },
 

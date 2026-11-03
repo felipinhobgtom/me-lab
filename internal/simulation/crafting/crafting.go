@@ -299,6 +299,37 @@ func Initialize(
 	return st, events, diagnostics.DeduplicateAndSort(diags)
 }
 
+// EnqueueRequest plans a new Crafting Terminal request against the live runtime.
+// It mutates the existing storage/CPU/provider state; callers persist the returned
+// events and state without creating a second simulation run.
+func (s *State) EnqueueRequest(
+	simID string,
+	req domain.CraftingRequest,
+	store *storage.State,
+	profile domain.CompatibilityProfile,
+	emitter EventEmitter,
+) ([]domain.SimulationEvent, []domain.Diagnostic) {
+	if s == nil || req.ItemID == "" || req.Quantity <= 0 {
+		return nil, nil
+	}
+	for index := len(s.Jobs) + 1; ; index++ {
+		jobID := fmt.Sprintf("job-%d", index)
+		used := false
+		for _, job := range s.Jobs {
+			if job != nil && job.ID == jobID {
+				used = true
+				break
+			}
+		}
+		if used {
+			continue
+		}
+		job, events, diags := s.planAndReserveJob(simID, jobID, req, nil, store, profile, emitter)
+		s.Jobs = append(s.Jobs, job)
+		return events, diags
+	}
+}
+
 func (s *State) planAndReserveJob(
 	simID string,
 	jobID string,

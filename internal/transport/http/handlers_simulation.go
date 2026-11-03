@@ -5,11 +5,13 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/felipinho/me-lab/internal/domain"
 	"github.com/felipinho/me-lab/internal/repository/sqlite"
 	"github.com/felipinho/me-lab/internal/simulation"
+	"github.com/felipinho/me-lab/internal/simulation/crafting"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -24,6 +26,12 @@ type createSimulationRequest struct {
 
 type stepSimulationRequest struct {
 	Ticks int `json:"ticks"`
+}
+
+type queueCraftingRequest struct {
+	ItemID   string `json:"item_id"`
+	Quantity int    `json:"quantity"`
+	Source   string `json:"source"`
 }
 
 func (s *Server) buildProjectSnapshot(
@@ -167,6 +175,68 @@ func (s *Server) handleCreateSimulation(w http.ResponseWriter, r *http.Request) 
 	}
 
 	RespondJSON(w, http.StatusCreated, run)
+}
+
+func (s *Server) handleQueueCrafting(w http.ResponseWriter, r *http.Request) {
+	run, project, _, stateBytes, ok := s.loadOwnedSimulation(w, r, chi.URLParam(r, "simulationId"))
+	if !ok {
+		return
+	}
+
+	var req queueCraftingRequest
+	if r.Body == nil || json.NewDecoder(r.Body).Decode(&req) != nil {
+		RespondError(w, r, http.StatusBadRequest, ErrCodeBadRequest, "Invalid crafting request")
+		return
+	}
+	req.ItemID = strings.TrimSpace(req.ItemID)
+	if req.Source == "" {
+		req.Source = "crafting_terminal"
+	}
+	if req.ItemID == "" || req.Quantity < 1 || req.Quantity > 1_000_000 {
+		RespondValidationError(w, r, map[string]any{"item_id": "required", "quantity": "must be between 1 and 1000000"})
+		return
+	}
+	if run.Status != domain.SimStatusRunning {
+		RespondError(w, r, http.StatusConflict, ErrCodeConflict, "Live simulation is not running")
+		return
+	}
+
+	var state simulation.EngineState
+	if err := json.Unmarshal(stateBytes, &state); err != nil {
+		RespondError(w, r, http.StatusInternalServerError, ErrCodeInternal, "Corrupted simulation state")
+		return
+	}
+	if state.Crafting == nil || state.Storage == nil {
+		RespondError(w, r, http.StatusConflict, ErrCodeConflict, "Live crafting runtime is unavailable")
+		return
+	}
+	profile, exists := s.catalog.GetProfile(project.ProfileID)
+	if !exists {
+		RespondError(w, r, http.StatusInternalServerError, ErrCodeInternal, "Project compatibility profile not found")
+		return
+	}
+	emitter := crafting.EventEmitter{
+		SimulationID: state.SimulationID,
+		NextSequence: &state.NextSequence,
+	}
+	events, diags := state.Crafting.EnqueueRequest(
+		state.SimulationID,
+		domain.CraftingRequest{ItemID: req.ItemID, Quantity: req.Quantity, Source: req.Source},
+		state.Storage,
+		profile,
+		emitter,
+	)
+	newStateBytes, err := simulation.MarshalState(&state)
+	if err != nil {
+		RespondError(w, r, http.StatusInternalServerError, ErrCodeInternal, "Failed to serialize crafting state")
+		return
+	}
+	if err := s.store.UpdateSimulationRunState(r.Context(), state.ToSimulationRun(), newStateBytes, events, diags); err != nil {
+		s.logger.Error("persist queued crafting request failed", "error", err, "simulation_id", state.SimulationID)
+		RespondError(w, r, http.StatusInternalServerError, ErrCodeInternal, "Failed to queue crafting request")
+		return
+	}
+	RespondJSON(w, http.StatusAccepted, state.ToSimulationRun())
 }
 
 func (s *Server) handleListSimulations(w http.ResponseWriter, r *http.Request) {

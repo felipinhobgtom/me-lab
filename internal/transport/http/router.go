@@ -141,6 +141,7 @@ func NewRouter(deps Deps) *chi.Mux {
 
 			authed.Route("/simulations/{simulationId}", func(sim chi.Router) {
 				sim.Get("/", srv.handleGetSimulation)
+				sim.Post("/craft", srv.handleQueueCrafting)
 				sim.Post("/step", srv.handleStepSimulation)
 				sim.Post("/pause", srv.handlePauseSimulation)
 				sim.Post("/resume", srv.handleResumeSimulation)

@@ -229,6 +229,15 @@ const OpenAPISpecJSON = `{
             }
           }
         }
+      },
+      "QueueCraftingRequest": {
+        "type": "object",
+        "required": ["item_id", "quantity"],
+        "properties": {
+          "item_id": { "type": "string", "example": "minecraft:oak_planks" },
+          "quantity": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+          "source": { "type": "string", "default": "crafting_terminal" }
+        }
       }
     }
   },
@@ -461,6 +470,22 @@ const OpenAPISpecJSON = `{
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "simulationId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "Simulation run" } }
+      }
+    },
+    "/api/v1/simulations/{simulationId}/craft": {
+      "post": {
+        "tags": ["Simulation & Validation"],
+        "summary": "Queue a crafting request in the live ME runtime",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "simulationId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QueueCraftingRequest" } } }
+        },
+        "responses": {
+          "202": { "description": "Crafting request accepted into the live runtime" },
+          "409": { "description": "Live runtime is not available" }
+        }
       }
     },
     "/api/v1/simulations/{simulationId}/step": {
