@@ -43,16 +43,29 @@ Every catalog block carries an explicit `fidelity` classification (`internal/dom
 | `ae2:export_bus` | ME Export Bus | `storage` | `1` / cable-dependent | `approximated` | [Export Bus](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/export_bus) |
 | `ae2:quantum_ring` | ME Quantum Network Bridge | `network` | N/A (emits `UNSUPPORTED_MECHANIC`) | `unsupported` | [Quantum Bridge](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/quantum_bridge) |
 
-### 1.1 Vanilla container and furnace runtime
+### 1.1 Vanilla containers and Minecraft-style inventory screens
+
+Vanilla containers are not rendered as generic AE2 Block Configuration. Double-clicking a supported chest, barrel, hopper, furnace, or blast furnace opens a dedicated Minecraft-style inventory screen with the block slots, the player's 27-slot inventory and 9-slot hotbar layout, runtime furnace state, and a searchable vanilla item picker. The item picker writes namespaced `minecraft:*` stacks into the authoritative block configuration; runtime overlays remain read-only observations of processing and extraction.
+
+- Chest, barrel and hopper use their real 27/27/5 storage capacities.
+- Furnace and blast furnace expose only input, fuel and output. Their processing and output remain continuous runtime behavior.
+- Clicking a filled block slot extracts that configured stack. Clicking an item in the vanilla picker inserts it into the first compatible slot; furnace input and fuel can also be targeted explicitly.
+- The generic Block Configuration panel remains available for placement, orientation and AE2-specific settings, but it no longer contains the vanilla container inventory cards.
+
+The block catalog includes the renderable vanilla block-state IDs from the official Minecraft Java 1.21.1 client asset registry (1,057 generated vanilla block entries in addition to the explicitly modeled vanilla machines) and the frontend item picker includes the 1,754 item-model IDs from that same version-matched registry. Generic catalog entries are labeled `approximated` and use original procedural visuals; they do not claim an implementation of every block's machine behavior.
+
+Version-matched sources:
+- [Minecraft Java Edition 1.21.1](https://www.minecraft.net/en-us/article/minecraft-java-edition-1-21-1)
+- [Minecraft 1.21.1 version page](https://minecraft.wiki/w/Java_Edition_1.21.1)
+- [Chest container slots](https://minecraft.wiki/w/Chest#Container)
+- [Furnace processing slots](https://minecraft.wiki/w/Furnace#Processing_items)
+- [Creative inventory (1.21-era revision)](https://minecraft.wiki/w/Creative_inventory?oldid=2654837)
+
+---
+
+### 1.2 Vanilla container and furnace runtime
 
 The editor opens supported Minecraft inventories through the same right-click/double-click inspector used for AE2 devices. Inventory mutations are persisted into the block configuration and are consumed by the live runtime; there is no simulation or step button.
-
-- `minecraft:chest` and `minecraft:barrel` expose 27 inventory slots.
-- `minecraft:hopper` exposes its official 5 inventory slots.
-- `minecraft:furnace` exposes input, fuel, and output slots. A valid recipe consumes one fuel item, burns continuously, and completes after 200 game ticks.
-- `minecraft:blast_furnace` uses the same three slots and fuel burn times, but completes supported ore/raw-metal recipes in 100 game ticks.
-- The runtime currently implements these explicitly defined furnace recipes: raw iron, raw gold, raw copper, cobblestone, sand, and clay balls. An unlisted input remains idle instead of being processed with invented behavior.
-- Lit state, burn time, and cook progress are read-only runtime state and update continuously at 20 TPS.
 
 Version-matched sources consulted for this contract:
 - [Chest — Container](https://minecraft.wiki/w/Chest#Container)

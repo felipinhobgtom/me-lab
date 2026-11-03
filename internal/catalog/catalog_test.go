@@ -140,8 +140,18 @@ func TestRegistryBlockLookupAndFidelity(t *testing.T) {
 
 	for _, profile := range reg.Profiles() {
 		blocks := reg.BlocksForProfile(profile.ID)
-		if len(blocks) != len(requiredBlocks) {
-			t.Fatalf("profile %s has %d blocks, want %d", profile.ID, len(blocks), len(requiredBlocks))
+		if len(blocks) < len(requiredBlocks) {
+			t.Fatalf("profile %s has %d blocks, want at least %d", profile.ID, len(blocks), len(requiredBlocks))
+		}
+		for _, generatedID := range []string{
+			"minecraft:stone",
+			"minecraft:crafter",
+			"minecraft:trial_spawner",
+			"minecraft:oak_planks",
+		} {
+			if _, ok := reg.GetBlock(profile.ID, generatedID); !ok {
+				t.Fatalf("profile %s missing generated vanilla block %s", profile.ID, generatedID)
+			}
 		}
 		for blockID, wantFidelity := range requiredBlocks {
 			b, ok := reg.GetBlock(profile.ID, blockID)
@@ -179,8 +189,8 @@ func TestRegistryBlockLookupAndFidelity(t *testing.T) {
 	}
 
 	all := reg.AllBlocks()
-	if len(all) != 3*len(requiredBlocks) {
-		t.Fatalf("AllBlocks() len = %d, want %d", len(all), 3*len(requiredBlocks))
+	if len(all) < 3*len(requiredBlocks) {
+		t.Fatalf("AllBlocks() len = %d, want at least %d", len(all), 3*len(requiredBlocks))
 	}
 
 	if _, ok := reg.GetProfile("nonexistent"); ok {

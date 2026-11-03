@@ -8,6 +8,7 @@ import {
   type CableColor,
 } from '@/lib/ae2/constants'
 import { BlockInspector } from '../inspector/BlockInspector'
+import { VanillaInventoryModal } from '../inventory/VanillaInventoryModal'
 import { SANDBOX_PRESETS } from '../projects/fixtures'
 import { useEditorStore } from './store'
 import { getBlockIconUrl } from './textures'
@@ -32,7 +33,12 @@ const PALETTE_CATEGORY_TABS: Record<
   all: [{ id: 'all', label: 'All Items' }],
   minecraft: [
     { id: 'all', label: 'All Blocks' },
-    { id: 'machines', label: 'Functional' },
+    { id: 'building', label: 'Building Blocks' },
+    { id: 'colored', label: 'Colored Blocks' },
+    { id: 'natural', label: 'Natural Blocks' },
+    { id: 'functional', label: 'Functional' },
+    { id: 'redstone', label: 'Redstone' },
+    { id: 'machines', label: 'Legacy Machines' },
   ],
   ae2: [
     { id: 'all', label: 'All AE2' },
@@ -49,6 +55,14 @@ const PALETTE_NAMESPACE_TITLES: Record<Exclude<PaletteNamespace, 'all'>, string>
   minecraft: 'Minecraft Vanilla',
   ae2: 'Applied Energistics 2',
 }
+
+const VANILLA_INVENTORY_IDS = new Set([
+  'minecraft:chest',
+  'minecraft:barrel',
+  'minecraft:hopper',
+  'minecraft:furnace',
+  'minecraft:blast_furnace',
+])
 
 interface ExportModalState {
   title: string
@@ -123,6 +137,12 @@ export function EditorLayout() {
 
   const runtimeStartRef = useRef(false)
   const autoSyncTimerRef = useRef<number | null>(null)
+
+  const selectedVanillaInventoryBlock = useMemo(() => {
+    if (selectedBlockIds.length !== 1) return null
+    const block = blocks.find((candidate) => candidate.id === selectedBlockIds[0])
+    return block && VANILLA_INVENTORY_IDS.has(block.block_def_id) ? block : null
+  }, [blocks, selectedBlockIds])
 
   // Initialize Sandbox automatically without login or project dashboard!
   useEffect(() => {
@@ -393,11 +413,13 @@ export function EditorLayout() {
         return false
       }
       if (paletteCategory !== 'all') {
-        if (paletteCategory === 'network') {
-          if (d.category !== 'network' && d.category !== 'energy') return false
-        } else if (d.category !== paletteCategory) {
-          return false
-        }
+        const categoryMatches =
+          paletteCategory === 'network'
+            ? d.category === 'network' || d.category === 'energy'
+            : paletteCategory === 'functional'
+              ? d.category === 'functional' || d.category === 'machines'
+              : d.category === paletteCategory
+        if (!categoryMatches) return false
       }
       if (q && !d.name.toLowerCase().includes(q) && !d.id.toLowerCase().includes(q)) {
         return false
@@ -1083,23 +1105,29 @@ export function EditorLayout() {
         </div>
       )}
 
-      {/* Floating On-Demand Block Configuration Card */}
-      {inspectorOpen && (
-        <div className="floating-inspector-panel">
-          <div className="floating-panel-bar">
-            <span>Block Configuration</span>
-            <button
-              type="button"
-              className="hud-btn"
-              onClick={() => setInspectorOpen(false)}
-            >
-              ✕
-            </button>
+      {inspectorOpen && selectedVanillaInventoryBlock ? (
+        <VanillaInventoryModal
+          blockId={selectedVanillaInventoryBlock.id}
+          onClose={() => setInspectorOpen(false)}
+        />
+      ) : (
+        inspectorOpen && (
+          <div className="floating-inspector-panel">
+            <div className="floating-panel-bar">
+              <span>Block Configuration</span>
+              <button
+                type="button"
+                className="hud-btn"
+                onClick={() => setInspectorOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="floating-panel-scroll">
+              <BlockInspector />
+            </div>
           </div>
-          <div className="floating-panel-scroll">
-            <BlockInspector />
-          </div>
-        </div>
+        )
       )}
 
 

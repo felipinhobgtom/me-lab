@@ -41,8 +41,7 @@
   - **Energy Engine (`energy`):** Per-node `25 AE` buffers, `8,000 AE` Controller buffer (`6 AE/t` drain), `200k` / `1.6M` / Creative Energy Cells, `2 FE = 1 AE` Energy Acceptor conversion, `1/128 AE/t` channel traversal drain, active `20 AE/t` Molecular Assembler load, and tick-accurate brownout/recovery.
   - **Storage Engine (`storage`):** Exact AE2 cell byte & type capacity math (`63` max types, tier-specific `bytes_per_type` from `8 B` on `1k` to `2048 B` on `256k`, `ceil(qty / 8)` item bytes), whitelist/Inverter Card partitions, and drive `priority` ordering.
   - **Live ME terminals:** the ME Crafting Terminal reads network storage and craftable Pattern Provider outputs and queues requests into the running Crafting CPU; the ME Pattern Encoding Terminal persists crafting/processing encodings and installs them into providers without manual simulation controls. See the [version-matched terminal contract](docs/architecture/ae2-compatibility-1.21.1.md#210-crafting-terminal-and-pattern-encoding-terminal).
-- **Blueprint & Build Sheet Export:** Deterministic JSON blueprint (`/export/json`) and Markdown build sheet (`/export/build-sheet`) with Bill of Materials, Y-layer placement tables, cell partitions, encoded patterns, and pre-flight checklist.
-
+  - **Minecraft-style vanilla inventories:** double-clicking a chest, barrel, hopper, furnace, or blast furnace opens a dedicated container screen with the official slot layout, runtime furnace state, searchable vanilla item insertion, and no generic Block Configuration inventory card. The catalog ships versioned 1.21.1 vanilla block IDs and item-model IDs generated from the official client registry.
 ---
 
 ## Compatibility Fidelity & Honest Non-Goals

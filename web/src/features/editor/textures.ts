@@ -345,6 +345,8 @@ export function getBlockIconUrl(blockDefId: string, cableColor: CableColor = 'fl
     case 'ae2:quantum_ring':
       return '/textures/ae2/block/quantum_ring.png'
     default:
-      return '/textures/ae2/block/generics/side.png'
+      return blockDefId.startsWith('minecraft:')
+        ? '/textures/minecraft/block/smooth_stone.png'
+        : '/textures/ae2/block/generics/side.png'
   }
 }

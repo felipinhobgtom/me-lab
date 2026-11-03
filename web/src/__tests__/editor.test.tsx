@@ -342,12 +342,18 @@ describe('ME Lab zero-login AE2 sandbox', () => {
 
     fireEvent.doubleClick(screen.getByTestId('grid-cell-0-0-0'))
     expect(screen.getByTestId('container-inventory-panel')).toBeInTheDocument()
+    expect(screen.queryByText('Block Configuration')).toBeNull()
+    fireEvent.change(screen.getByLabelText('Search vanilla items'), {
+      target: { value: 'diamond' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^Diamond minecraft:diamond$/ }))
     fireEvent.change(screen.getByLabelText('Container item ID'), {
       target: { value: 'minecraft:oak_log' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Insert' }))
 
     expect(useEditorStore.getState().blocks[0].config.inventory).toEqual([
+      { item_id: 'minecraft:diamond', quantity: 1 },
       { item_id: 'minecraft:oak_log', quantity: 1 },
     ])
   })
