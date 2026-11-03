@@ -62,9 +62,16 @@ driveDefinition.behavior_key = 'drive'
 
 const catalog: BlockDefinition[] = [
   def('ae2:controller', 'ME Controller', 'network'),
-  def('ae2:smart_cable', 'ME Smart Cable', 'cables', { is_cable: true, is_smart_cable: true, channel_capacity: 8, transmits_channels: true }),
+  def('ae2:smart_cable', 'ME Smart Cable', 'cables', {
+    is_cable: true,
+    is_smart_cable: true,
+    channel_capacity: 8,
+    transmits_channels: true,
+  }),
   def('ae2:crafting_terminal', 'ME Crafting Terminal', 'storage', { channel_usage: 1 }),
   driveDefinition,
+  def('minecraft:furnace', 'Furnace', 'machines'),
+  def('minecraft:chest', 'Chest', 'machines'),
 ]
 function mockBackend(initialBlocks: PlacedBlock[] = []) {
   vi.spyOn(api, 'listProfiles').mockResolvedValue([
@@ -173,6 +180,26 @@ describe('ME Lab zero-login AE2 sandbox', () => {
     expect(screen.queryByText(/Workspace Projects/i)).toBeNull()
     expect(useEditorStore.getState().blocks).toHaveLength(0)
     expect(window.localStorage.getItem('melab_sandbox_project_id')).toBe('proj-1')
+  })
+
+  it('opens a Minecraft-style creative inventory with Vanilla and AE2 sections', async () => {
+    mockBackend()
+    renderApp()
+    await screen.findByText(/Empty Sandbox/i)
+
+    fireEvent.keyDown(window, { key: 'e' })
+    expect(screen.getByRole('dialog', { name: 'Creative Inventory' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Minecraft' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'AE2' })).toBeInTheDocument()
+    expect(screen.getByText('Minecraft Vanilla')).toBeInTheDocument()
+    expect(screen.getByText('Applied Energistics 2')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Minecraft' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Functional' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Furnace' }))
+
+    expect(useEditorStore.getState().activeBlockDefId).toBe('minecraft:furnace')
+    expect(screen.queryByRole('dialog', { name: 'Creative Inventory' })).toBeNull()
   })
 
   it('starts and advances the ME runtime without manual execution controls', async () => {

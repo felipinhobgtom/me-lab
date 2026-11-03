@@ -18,14 +18,38 @@ import './EditorLayout.css'
 
 const SANDBOX_STORAGE_KEY = 'melab_sandbox_project_id'
 
-const CATEGORY_TABS = [
-  { id: 'all', label: 'All Blocks' },
-  { id: 'cables', label: 'Cables' },
-  { id: 'network', label: 'Network & Power' },
-  { id: 'storage', label: 'Storage & Terminals' },
-  { id: 'autocrafting', label: 'Autocrafting' },
-  { id: 'machines', label: 'Machines' },
+type PaletteNamespace = 'all' | 'minecraft' | 'ae2'
+
+const PALETTE_NAMESPACE_TABS: readonly { id: PaletteNamespace; label: string }[] = [
+  { id: 'all', label: 'All Items' },
+  { id: 'minecraft', label: 'Minecraft' },
+  { id: 'ae2', label: 'AE2' },
 ] as const
+
+const PALETTE_CATEGORY_TABS: Record<
+  PaletteNamespace,
+  readonly { id: string; label: string }[]
+> = {
+  all: [{ id: 'all', label: 'All Items' }],
+  minecraft: [
+    { id: 'all', label: 'All Blocks' },
+    { id: 'machines', label: 'Functional' },
+  ],
+  ae2: [
+    { id: 'all', label: 'All AE2' },
+    { id: 'cables', label: 'Cables' },
+    { id: 'network', label: 'Network' },
+    { id: 'energy', label: 'Energy' },
+    { id: 'storage', label: 'Storage' },
+    { id: 'autocrafting', label: 'Crafting' },
+    { id: 'machines', label: 'Machines' },
+  ],
+} as const
+
+const PALETTE_NAMESPACE_TITLES: Record<Exclude<PaletteNamespace, 'all'>, string> = {
+  minecraft: 'Minecraft Vanilla',
+  ae2: 'Applied Energistics 2',
+}
 
 interface ExportModalState {
   title: string
@@ -90,6 +114,7 @@ export function EditorLayout() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState<boolean>(false)
   const [paletteQuery, setPaletteQuery] = useState<string>('')
+  const [paletteNamespace, setPaletteNamespace] = useState<PaletteNamespace>('all')
   const [paletteCategory, setPaletteCategory] = useState<string>('all')
   const [targetHotbarSlot, setTargetHotbarSlot] = useState<number>(0)
   const [presetsMenuOpen, setPresetsMenuOpen] = useState<boolean>(false)
@@ -365,6 +390,9 @@ export function EditorLayout() {
       if (d.fidelity === 'unsupported' && !q) {
         return false
       }
+      if (paletteNamespace !== 'all' && !d.id.startsWith(`${paletteNamespace}:`)) {
+        return false
+      }
       if (paletteCategory !== 'all') {
         if (paletteCategory === 'network') {
           if (d.category !== 'network' && d.category !== 'energy') return false
@@ -377,7 +405,19 @@ export function EditorLayout() {
       }
       return true
     })
-  }, [catalog, paletteCategory, paletteQuery])
+  }, [catalog, paletteCategory, paletteNamespace, paletteQuery])
+
+  const paletteGroups = useMemo(() => {
+    const namespaces: Exclude<PaletteNamespace, 'all'>[] =
+      paletteNamespace === 'all' ? ['minecraft', 'ae2'] : [paletteNamespace]
+    return namespaces
+      .map((namespace) => ({
+        namespace,
+        title: PALETTE_NAMESPACE_TITLES[namespace],
+        items: filteredCatalog.filter((d) => d.id.startsWith(`${namespace}:`)),
+      }))
+      .filter((group) => group.items.length > 0)
+  }, [filteredCatalog, paletteNamespace])
 
   const activeDef = activeBlockDefId ? catalogById.get(activeBlockDefId) : undefined
   const holdingCable = Boolean(
@@ -879,75 +919,126 @@ export function EditorLayout() {
           onClick={() => setPaletteOpen(false)}
         >
           <div
-            className="creative-modal"
+            className="creative-modal minecraft-inventory"
             role="dialog"
-            aria-label="AE2 Block Catalog"
+            aria-label="Creative Inventory"
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                setPaletteOpen(false)
+              }
+            }}
           >
-            <div className="creative-modal-header">
-              <input
-                type="search"
-                autoFocus
-                className="creative-search"
-                placeholder="Search AE2 & Minecraft blocks (e.g. Controller, Dense Cable, Furnace, Hopper, Bus)…"
-                value={paletteQuery}
-                onChange={(e) => setPaletteQuery(e.target.value)}
-              />
+            <div className="creative-inventory-top">
+              <div className="creative-inventory-title">
+                <strong>Creative Inventory</strong>
+                <span>ME Lab · choose a block to place</span>
+              </div>
               <button
                 type="button"
-                className="hud-btn"
+                className="creative-close"
+                aria-label="Close creative inventory"
                 onClick={() => setPaletteOpen(false)}
               >
-                Close (Esc)
+                ×
               </button>
             </div>
 
-            <div className="creative-tabs">
-              {CATEGORY_TABS.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  className={`hud-btn ${paletteCategory === cat.id ? 'active' : ''}`}
-                  onClick={() => setPaletteCategory(cat.id)}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="creative-grid">
-              {filteredCatalog.map((def) => {
-                const iconCol = isCableBlockId(def.id, def) ? activeCableColor : 'fluix'
-                return (
+            <div className="creative-inventory-toolbar">
+              <div className="creative-tabs" role="tablist" aria-label="Block namespaces">
+                {PALETTE_NAMESPACE_TABS.map((tab) => (
                   <button
-                    key={def.id}
+                    key={tab.id}
                     type="button"
-                    data-testid={`catalog-card-${def.id}`}
-                    className={`creative-item ${activeBlockDefId === def.id ? 'selected' : ''}`}
+                    role="tab"
+                    aria-selected={paletteNamespace === tab.id}
+                    className={`creative-tab ${paletteNamespace === tab.id ? 'active' : ''}`}
                     onClick={() => {
-                      setHotbarSlot(targetHotbarSlot, def.id)
-                      setPaletteOpen(false)
+                      setPaletteNamespace(tab.id)
+                      setPaletteCategory('all')
                     }}
                   >
-                    <img
-                      src={getBlockIconUrl(def.id, iconCol)}
-                      alt={def.name}
-                      className="pixel-icon-lg"
-                      draggable={false}
-                    />
-                    <div className="creative-item-meta">
-                      <span className="creative-item-name">{def.name}</span>
-                      <span className="creative-item-sub">
-                        {def.metadata.is_cable
-                          ? `${def.metadata.channel_capacity} ch cable`
-                          : def.metadata.channel_usage > 0
-                            ? `${def.metadata.channel_usage} ch`
-                            : def.category}
-                      </span>
-                    </div>
+                    {tab.label}
                   </button>
-                )
-              })}
+                ))}
+              </div>
+              <label className="creative-search-wrap">
+                <span aria-hidden="true">⌕</span>
+                <input
+                  type="search"
+                  autoFocus
+                  className="creative-search"
+                  aria-label="Search blocks"
+                  placeholder="Search blocks…"
+                  value={paletteQuery}
+                  onChange={(e) => setPaletteQuery(e.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="creative-inventory-body">
+              <aside className="creative-category-rail" role="tablist" aria-label="Block categories">
+                {PALETTE_CATEGORY_TABS[paletteNamespace].map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={paletteCategory === cat.id}
+                    className={`creative-category-tab ${
+                      paletteCategory === cat.id ? 'active' : ''
+                    }`}
+                    onClick={() => setPaletteCategory(cat.id)}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </aside>
+
+              <div className="creative-inventory-content">
+                {paletteGroups.length === 0 ? (
+                  <div className="creative-empty">No blocks match this search.</div>
+                ) : (
+                  paletteGroups.map((group) => (
+                    <section key={group.namespace} className="creative-group">
+                      <h2 className="creative-group-title">{group.title}</h2>
+                      <div className="creative-grid">
+                        {group.items.map((def) => {
+                          const iconCol = isCableBlockId(def.id, def) ? activeCableColor : 'fluix'
+                          return (
+                            <button
+                              key={def.id}
+                              type="button"
+                              data-testid={`catalog-card-${def.id}`}
+                              aria-label={def.name}
+                              title={`${def.name} · ${def.id}`}
+                              className={`creative-item ${
+                                activeBlockDefId === def.id ? 'selected' : ''
+                              }`}
+                              onClick={() => {
+                                setHotbarSlot(targetHotbarSlot, def.id)
+                                setPaletteOpen(false)
+                              }}
+                            >
+                              <img
+                                src={getBlockIconUrl(def.id, iconCol)}
+                                alt=""
+                                className="pixel-icon-lg"
+                                draggable={false}
+                              />
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </section>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="creative-inventory-footer">
+              <span>{filteredCatalog.length} blocks</span>
+              <span>Click to select · Esc to close</span>
             </div>
           </div>
         </div>
