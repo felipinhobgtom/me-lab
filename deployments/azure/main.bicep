@@ -6,8 +6,8 @@ param location string = resourceGroup().location
 @maxLength(12)
 param environmentName string = 'prod'
 
-@description('Azure VM size. Standard_B2s balances cost and memory for Go + Nginx + SQLite.')
-param vmSize string = 'Standard_B2s'
+@description('Azure VM size. Standard_D2as_v4 provides 2 vCPUs and 8 GiB for Go + Nginx + SQLite in Azure for Students regions.')
+param vmSize string = 'Standard_D2as_v4'
 
 @description('Administrator Linux username for SSH login.')
 param adminUsername string = 'azureuser'

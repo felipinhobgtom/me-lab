@@ -10,7 +10,7 @@ param location string = 'brazilsouth'
 param environmentName string = 'prod'
 
 @description('Azure VM size.')
-param vmSize string = 'Standard_B2s'
+param vmSize string = 'Standard_D2as_v4'
 
 @description('Administrator Linux username.')
 param adminUsername string = 'azureuser'

@@ -6,7 +6,7 @@ This operations guide covers provisioning, TLS setup, persistent SQLite disk man
 
 ## 1. Production Topology Summary
 
-- **Compute**: 1x Ubuntu 24.04 LTS Linux VM (`Standard_B2s` default: 2 vCPU, 4 GiB RAM) with **System-Assigned Managed Identity**.
+- **Compute**: 1x Ubuntu 24.04 LTS Linux VM (`Standard_D2as_v4` default: 2 vCPU, 8 GiB RAM) with **System-Assigned Managed Identity**.
 - **Ingress & TLS**: Azure Public IP (`<dnsLabelPrefix>.<region>.cloudapp.azure.com`) + Network Security Group -> Host **Nginx** (`deployments/azure/nginx-tls.conf`) terminating Let's Encrypt TLS 1.2/1.3 -> Docker Compose (`deployments/azure/compose.prod.yaml`) bound strictly to `127.0.0.1:8080` (`api`) and `127.0.0.1:8081` (`web`).
 - **Persistent SQLite Disk**: 32 GiB `StandardSSD_LRS` Azure Managed Data Disk (`LUN 0`, `caching: None`) formatted as `ext4` and mounted at `/mnt/melab-data`, storing `/mnt/melab-data/me-lab.db` in WAL mode.
 - **Off-Host Backups**: Azure Storage Account (`Standard_LRS`, public blob access disabled, TLS 1.2+) with private container `sqlite-backups`. The VM's System-Assigned Managed Identity holds the **Storage Blob Data Contributor** RBAC role (`ba92f5b4-2d11-453d-a403-e96b0029c9fe`) — no storage account keys or SAS tokens are stored on the VM.
@@ -43,7 +43,7 @@ az deployment sub create \
     resourceGroupName="$AZURE_RG" \
     location="$AZURE_LOCATION" \
     environmentName="prod" \
-    vmSize="Standard_B2s" \
+    vmSize="Standard_D2as_v4" \
     adminUsername="azureuser" \
     sshPublicKey="$(cat ~/.ssh/id_ed25519.pub)" \
     sshAllowedCidr="$MY_SSH_CIDR" \
@@ -117,7 +117,7 @@ Configure these GitHub **environment variables** in the `production` environment
 | --- | --- |
 | `AZURE_RESOURCE_GROUP` | Resource Group name; defaults to `rg-melab-prod` and is created by ARM if absent |
 | `AZURE_LOCATION` | Azure region; Azure for Students currently allows `brazilsouth`, `mexicocentral`, `chilecentral`, `spaincentral`, or `southcentralus` |
-| `AZURE_VM_SIZE` | Usually `Standard_B2s` |
+| `AZURE_VM_SIZE` | Usually `Standard_D2as_v4`; B-series capacity is unavailable in `brazilsouth` for this subscription |
 | `AZURE_ADMIN_USERNAME` | VM SSH administrator |
 | `AZURE_SSH_ALLOWED_CIDR` | Operator IP/CIDR allowed on port 22 |
 | `AZURE_DNS_LABEL_PREFIX` | Public Azure DNS label |
@@ -223,7 +223,7 @@ On an **Azure for Students** ($100 credit) subscription, compute uptime is the p
 
 | Resource | SKU | Approx. Monthly Cost (24/7) | Cost While VM Deallocated |
 | --- | --- | --- | --- |
-| Linux VM | `Standard_B2s` | ~$30–$35 / mo | **$0.00 / hr** |
+| Linux VM | `Standard_D2as_v4` | Region-dependent | **$0.00 / hr** |
 | Managed Data Disk | `32 GiB StandardSSD_LRS` | ~$2.40 / mo | ~$2.40 / mo (all SQLite data preserved) |
 | Static Public IP + Blob Backups | `Standard` IP + `Standard_LRS` (<1 GiB) | ~$3.65 / mo | ~$3.65 / mo (DNS + backups preserved) |
 
