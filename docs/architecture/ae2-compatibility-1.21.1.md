@@ -38,9 +38,9 @@ Every catalog block carries an explicit `fidelity` classification (`internal/dom
 | `ae2:crafting_monitor` | Crafting Monitor | `crafting` | `1` per CPU (job display) | `exact` | [Crafting CPU](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/crafting_cpu_multiblock) |
 | `melab:external_machine` | External Processing Machine | `crafting` | `0` / `0` (configurable ticks) | `approximated` | [Processing Patterns](https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/autocrafting#processing-patterns) |
 | `ae2:p2p_tunnel` | ME P2P Tunnel | `network` | N/A (emits `UNSUPPORTED_MECHANIC`) | `unsupported` | [P2P Tunnels](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/p2p_tunnels) |
-| `ae2:storage_bus` | ME Storage Bus | `storage` | N/A (emits `UNSUPPORTED_MECHANIC`) | `unsupported` | [Storage Bus](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/storage_bus) |
-| `ae2:import_bus` | ME Import Bus | `storage` | N/A (emits `UNSUPPORTED_MECHANIC`) | `unsupported` | [Import Bus](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/import_bus) |
-| `ae2:export_bus` | ME Export Bus | `storage` | N/A (emits `UNSUPPORTED_MECHANIC`) | `unsupported` | [Export Bus](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/export_bus) |
+| `ae2:storage_bus` | ME Storage Bus | `storage` | `1` / cable-dependent | `approximated` | [Storage Bus](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/storage_bus) |
+| `ae2:import_bus` | ME Import Bus | `storage` | `1` / cable-dependent | `approximated` | [Import Bus](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/import_bus) |
+| `ae2:export_bus` | ME Export Bus | `storage` | `1` / cable-dependent | `approximated` | [Export Bus](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/export_bus) |
 | `ae2:quantum_ring` | ME Quantum Network Bridge | `network` | N/A (emits `UNSUPPORTED_MECHANIC`) | `unsupported` | [Quantum Bridge](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/quantum_bridge) |
 
 ---
@@ -122,3 +122,27 @@ Ref: [Autocrafting](https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/au
 3. **Execution**:
    - `crafting` patterns push to an adjacent `ae2:molecular_assembler` (`exact`, completes in `MolecularAssemblerTicks` ticks and auto-returns output to the adjacent Pattern Provider).
    - `processing` patterns push to an adjacent `melab:external_machine` (`approximated`, completes in configured `process_ticks` [default `8`] and returns output when `auto_return == true`).
+
+### 2.7 Powered Bus Automation
+Ref: [Import Bus](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/import_bus), [Export Bus](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/export_bus), [Pattern Provider](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/pattern_provider)
+
+The simulator treats every channel-using AE device as requiring **both** a granted channel and an online powered network. A brownout therefore stops storage access, crafting progression, and bus transfers; it does not merely paint the cable red.
+
+`Import Bus` and `Export Bus` can be mounted as cable subparts or represented as standalone devices. Each operation is deterministic:
+
+1. The target inventory is the block immediately in the bus-facing direction.
+2. Filters are item IDs. Import has an empty-filter “import all” default; Export requires at least one filter.
+3. An inverter changes the filter into a blacklist.
+4. Acceleration cards move `1`, `8`, `32`, `64`, or `96` items per tick, matching the official speed table.
+5. Import uses ME storage insertion rules (drive priority, partition and cell capacity). If storage is full, the item remains in the external inventory.
+6. Export extracts only what the target inventory can hold. Transfers emit `bus_transfer` events and are exposed through `overlay.automation_buses` and `overlay.external_inventories`.
+
+The current `Storage Bus` model exposes its target and power/channel status but intentionally does not duplicate external items into ME cells. This avoids double-counting and leaves the external inventory authoritative; explicit mutation is performed by Import/Export Bus.
+
+### 2.8 Pattern Provider and Processing Contract
+Ref: [Patterns](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/patterns) and [Molecular Assembler](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/molecular_assembler)
+
+- Crafting, smithing and stonecutting-style patterns are dispatched only to Molecular Assemblers.
+- Processing patterns are dispatched to adjacent external machines; the simulator uses the configured processing duration and `auto_return` behavior.
+- A Pattern Provider never becomes an item buffer for its ingredients: the CPU job pool is the source of the batch, and the result must return to ME storage or a provider return path.
+- Provider priority, blocking mode, lock-until-result, CPU capacity, co-processors, recursive-cycle detection, and deterministic coordinate tie-breaks are part of job planning.

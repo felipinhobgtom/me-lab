@@ -270,7 +270,29 @@ type DeviceRouteOverlay struct {
 	Coord      Coord3D   `json:"coord"`
 	NetworkID  string    `json:"network_id"`
 	HasChannel bool      `json:"has_channel"`
+	Online     bool      `json:"online"`
 	Route      []Coord3D `json:"route,omitempty"`
+}
+
+// AutomationBusOverlay exposes the live channel and power state of an Import/Export/Storage Bus.
+type AutomationBusOverlay struct {
+	BlockID         string  `json:"block_id"`
+	Coord           Coord3D `json:"coord"`
+	NetworkID       string  `json:"network_id"`
+	Kind            string  `json:"kind"`
+	TargetBlockID   string  `json:"target_block_id,omitempty"`
+	TargetCoord     Coord3D `json:"target_coord"`
+	HasChannel      bool    `json:"has_channel"`
+	Online          bool    `json:"online"`
+	LastTransferred int     `json:"last_transferred"`
+}
+
+// ExternalInventoryView exposes the deterministic inventory attached to an automation target.
+type ExternalInventoryView struct {
+	BlockID  string      `json:"block_id"`
+	Coord    Coord3D     `json:"coord"`
+	Capacity int         `json:"capacity"`
+	Items    []ItemStack `json:"items"`
 }
 
 // NetworkSummaryOverlay exposes per-network state for inspection in Debug Mode.
@@ -325,12 +347,14 @@ type StorageCellView struct {
 
 // TopologyOverlay aggregates all visual overlay and debug state for the frontend.
 type TopologyOverlay struct {
-	Networks     []NetworkSummaryOverlay `json:"networks"`
-	Cables       []CableChannelOverlay   `json:"cables"`
-	DeviceRoutes []DeviceRouteOverlay    `json:"device_routes"`
-	StorageCells []StorageCellView       `json:"storage_cells"`
-	StoredTotals []ItemStack             `json:"stored_totals"`
-	CraftingJobs []CraftingJobView       `json:"crafting_jobs"`
+	Networks            []NetworkSummaryOverlay `json:"networks"`
+	Cables              []CableChannelOverlay   `json:"cables"`
+	DeviceRoutes        []DeviceRouteOverlay    `json:"device_routes"`
+	StorageCells        []StorageCellView       `json:"storage_cells"`
+	StoredTotals        []ItemStack             `json:"stored_totals"`
+	CraftingJobs        []CraftingJobView       `json:"crafting_jobs"`
+	AutomationBuses     []AutomationBusOverlay  `json:"automation_buses"`
+	ExternalInventories []ExternalInventoryView `json:"external_inventories"`
 }
 
 // SimulationRun represents a persisted simulation run record.

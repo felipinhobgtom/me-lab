@@ -250,6 +250,10 @@ export function defaultConfigForBlock(
           },
         ],
       }
+    case 'ae2:import_bus':
+    case 'ae2:export_bus':
+    case 'ae2:storage_bus':
+      return { filters: [], inverter: false, acceleration: 0 }
     case 'ae2:pattern_provider':
       return {
         priority: 0,
@@ -402,6 +406,28 @@ export function readPatternProviderConfig(config: Record<string, unknown> | unde
   }
 
   return { priority, variant, blocking_mode, lock_mode, patterns }
+}
+
+export function readBusConfig(config: Record<string, unknown> | undefined): {
+  filters: string[]
+  inverter: boolean
+  acceleration: number
+} {
+  const rawFilters = config?.filters
+  const filters = Array.isArray(rawFilters)
+    ? rawFilters.filter((item): item is string => typeof item === 'string' && item.trim() !== '')
+    : typeof config?.filter === 'string' && config.filter.trim() !== ''
+      ? [config.filter.trim()]
+      : []
+  const accelerationRaw =
+    typeof config?.acceleration === 'number'
+      ? config.acceleration
+      : Number(config?.acceleration) || 0
+  return {
+    filters: [...new Set(filters.map((item) => item.trim()))],
+    inverter: config?.inverter === true,
+    acceleration: Math.min(4, Math.max(0, Math.floor(accelerationRaw))),
+  }
 }
 
 export function isCableBlock(block: PlacedBlock, def?: BlockDefinition): boolean {

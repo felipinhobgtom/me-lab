@@ -2,6 +2,14 @@
 
 All notable changes to **ME Lab — AE2 Network Designer & Simulator** are documented in this file.
 
+## [Unreleased]
+
+### Added
+- Powered AE2 automation: Energy Cells/acceptors now gate device service, Import/Export Bus transfers, filters, inverter and acceleration settings, bus telemetry, and deterministic `bus_transfer` events.
+- API overlay for per-device online status, automation buses, and external inventories.
+- Minecraft chest renderer now separates body, lid, side, top, and bottom pixel textures instead of reusing the wooden-plank texture across all faces.
+
+
 ## [1.0.0] - 2026-11-02
 
 ### Added

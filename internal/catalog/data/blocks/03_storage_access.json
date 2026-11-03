@@ -246,6 +246,29 @@
       "connection_rules": {
         "connect_all_faces": true
       },
+      "config_schema": [
+        {
+          "key": "filters",
+          "label": "Item Filters",
+          "type": "item_list",
+          "default": [],
+          "description": "Whitelist of item IDs; empty imports all accessible items."
+        },
+        {
+          "key": "inverter",
+          "label": "Inverter Card",
+          "type": "boolean",
+          "default": false,
+          "description": "Treat filters as a blacklist."
+        },
+        {
+          "key": "acceleration",
+          "label": "Acceleration Cards",
+          "type": "number",
+          "default": 0,
+          "description": "Items moved per operation: 1, 8, 32, 64, or 96."
+        }
+      ],
       "visual": {
         "color": "#6b7280",
         "accent_color": "#60a5fa",
@@ -276,6 +299,29 @@
       "connection_rules": {
         "connect_all_faces": true
       },
+      "config_schema": [
+        {
+          "key": "filters",
+          "label": "Item Filters",
+          "type": "item_list",
+          "default": [],
+          "description": "Whitelist of item IDs to export."
+        },
+        {
+          "key": "inverter",
+          "label": "Inverter Card",
+          "type": "boolean",
+          "default": false,
+          "description": "Treat filters as a blacklist."
+        },
+        {
+          "key": "acceleration",
+          "label": "Acceleration Cards",
+          "type": "number",
+          "default": 0,
+          "description": "Items moved per operation: 1, 8, 32, 64, or 96."
+        }
+      ],
       "visual": {
         "color": "#6b7280",
         "accent_color": "#60a5fa",
@@ -306,6 +352,29 @@
       "connection_rules": {
         "connect_all_faces": true
       },
+      "config_schema": [
+        {
+          "key": "filters",
+          "label": "Item Filters",
+          "type": "item_list",
+          "default": [],
+          "description": "Optional whitelist of items exposed by the storage bus."
+        },
+        {
+          "key": "inverter",
+          "label": "Inverter Card",
+          "type": "boolean",
+          "default": false,
+          "description": "Treat filters as a blacklist."
+        },
+        {
+          "key": "acceleration",
+          "label": "Acceleration Cards",
+          "type": "number",
+          "default": 0,
+          "description": "Reserved for deterministic external-storage operations."
+        }
+      ],
       "visual": {
         "color": "#6b7280",
         "accent_color": "#f59e0b",

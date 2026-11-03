@@ -7,6 +7,7 @@ import {
   coordKey,
   isCableBlock,
   readBooleanConfig,
+  readBusConfig,
   readCableConfig,
   readDriveConfig,
   readNumberConfig,
@@ -166,7 +167,12 @@ export function BlockInspector() {
     primaryBlock.block_def_id === 'ae2:pattern_provider'
       ? readPatternProviderConfig(primaryBlock.config)
       : null
-
+  const busCfg =
+    primaryBlock.block_def_id === 'ae2:import_bus' ||
+    primaryBlock.block_def_id === 'ae2:export_bus' ||
+    primaryBlock.block_def_id === 'ae2:storage_bus'
+      ? readBusConfig(primaryBlock.config)
+      : null
   return (
     <aside className="block-inspector" aria-label="Block Inspector">
       <div className="inspector-header">
@@ -543,6 +549,62 @@ export function BlockInspector() {
           </div>
         )}
 
+        {/* Import / Export / Storage Bus Editor */}
+        {busCfg && (
+          <div className="inspector-card">
+            <div className="inspector-section-title">ME Bus Automation</div>
+            <div className="inspector-field">
+              <label htmlFor="bus-filter-field">
+                {primaryBlock.block_def_id === 'ae2:export_bus' ? 'Export Filter (required)' : 'Item Filter'}
+              </label>
+              <textarea
+                id="bus-filter-field"
+                aria-label="Bus Item Filter"
+                rows={2}
+                value={busCfg.filters.join(', ')}
+                placeholder="minecraft:iron_ingot, minecraft:oak_log"
+                onChange={(e) =>
+                  patchConfig({
+                    filters: e.target.value
+                      .split(/[,\n]/)
+                      .map((item) => item.trim())
+                      .filter(Boolean),
+                  })
+                }
+              />
+              <span className="inspector-block-id">
+                {primaryBlock.block_def_id === 'ae2:export_bus'
+                  ? 'Only filtered items leave ME storage.'
+                  : 'Empty filter imports all accessible items.'}
+              </span>
+            </div>
+            <div className="inspector-field">
+              <label htmlFor="bus-acceleration-select">Acceleration Cards</label>
+              <select
+                id="bus-acceleration-select"
+                aria-label="Bus Acceleration"
+                value={busCfg.acceleration}
+                onChange={(e) => patchConfig({ acceleration: Number(e.target.value) })}
+              >
+                <option value={0}>0 — 1 item/op</option>
+                <option value={1}>1 — 8 items/op</option>
+                <option value={2}>2 — 32 items/op</option>
+                <option value={3}>3 — 64 items/op</option>
+                <option value={4}>4 — 96 items/op</option>
+              </select>
+            </div>
+            <label className="inspector-checkbox-row">
+              <input
+                type="checkbox"
+                aria-label="Bus Inverter"
+                checked={busCfg.inverter}
+                onChange={(e) => patchConfig({ inverter: e.target.checked })}
+              />
+              <span>Inverter Card (blacklist filter)</span>
+            </label>
+          </div>
+        )}
+
         {/* Pattern Provider Editor */}
         {providerCfg && (
           <div className="inspector-card">
@@ -896,6 +958,9 @@ export function BlockInspector() {
                 <div>Network: {blockTelemetry.route.network_id}</div>
                 <div>
                   Channel Granted: {blockTelemetry.route.has_channel ? 'YES' : 'NO'}
+                </div>
+                <div>
+                  Power Service: {blockTelemetry.route.online ? 'ONLINE' : 'OFFLINE'}
                 </div>
                 {blockTelemetry.route.route && blockTelemetry.route.route.length > 0 && (
                   <div>

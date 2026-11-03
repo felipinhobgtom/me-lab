@@ -320,7 +320,27 @@ export interface DeviceRouteOverlay {
   coord: Coord3D
   network_id: string
   has_channel: boolean
+  online: boolean
   route?: Coord3D[]
+}
+
+export interface AutomationBusOverlay {
+  block_id: string
+  coord: Coord3D
+  network_id: string
+  kind: string
+  target_block_id?: string
+  target_coord: Coord3D
+  has_channel: boolean
+  online: boolean
+  last_transferred: number
+}
+
+export interface ExternalInventoryView {
+  block_id: string
+  coord: Coord3D
+  capacity: number
+  items: ItemStack[]
 }
 
 export interface NetworkSummaryOverlay {
@@ -377,6 +397,8 @@ export interface TopologyOverlay {
   storage_cells: StorageCellView[]
   stored_totals: ItemStack[]
   crafting_jobs: CraftingJobView[]
+  automation_buses: AutomationBusOverlay[]
+  external_inventories: ExternalInventoryView[]
 }
 
 export interface SimulationRun {

@@ -75,6 +75,11 @@ func Initialize(
 			if n.EffectiveChannelUsage() > 0 || n.IsCPUBlock || n.IsController {
 				hasDevices = true
 			}
+			for _, subpartID := range n.SubpartsByFace {
+				if subpartID == "ae2:import_bus" || subpartID == "ae2:export_bus" || subpartID == "ae2:storage_bus" {
+					baseConsumption += 1
+				}
+			}
 
 			switch {
 			case n.IsCreativeEnergyCell():

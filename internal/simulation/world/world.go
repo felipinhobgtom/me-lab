@@ -450,11 +450,11 @@ func (n *Node) EffectiveChannelUsage() int {
 
 func isExternalMachineOrContainer(id, bkey string) bool {
 	switch id {
-	case "minecraft:furnace", "minecraft:blast_furnace", "minecraft:hopper", "minecraft:barrel",
+	case "minecraft:chest", "minecraft:furnace", "minecraft:blast_furnace", "minecraft:hopper", "minecraft:barrel",
 		"ae2:inscriber", "ae2:charger", "melab:external_machine":
 		return true
 	}
-	return bkey == "external_machine" || bkey == "hopper"
+	return bkey == "external_machine" || bkey == "hopper" || bkey == "external_storage"
 }
 
 func subpartConsumesChannel(subID string) bool {

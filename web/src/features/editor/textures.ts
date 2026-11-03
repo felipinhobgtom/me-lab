@@ -35,7 +35,13 @@ export function loadPixelTextureRegion(
   return texture
 }
 
-export type MinecraftChestTextureFace = 'front' | 'side' | 'top'
+export type MinecraftChestTextureFace =
+  | 'front'
+  | 'side'
+  | 'top'
+  | 'bottom'
+  | 'lid_front'
+  | 'lid_side'
 
 export function getMinecraftChestTexture(face: MinecraftChestTextureFace): THREE.CanvasTexture {
   const existing = chestTextureCache.get(face)
@@ -55,58 +61,84 @@ export function getMinecraftChestTexture(face: MinecraftChestTextureFace): THREE
   }
 
   ctx.imageSmoothingEnabled = false
-  ctx.fillStyle = face === 'top' ? '#b8793d' : '#9b5f2d'
+  const wood = '#a9652f'
+  const woodLight = '#c6813c'
+  const woodDark = '#75401d'
+  const trim = '#442512'
+
+  ctx.fillStyle = wood
   ctx.fillRect(0, 0, 16, 16)
 
   if (face === 'front') {
-    ctx.fillStyle = '#d0924b'
-    ctx.fillRect(1, 2, 14, 5)
-    ctx.fillRect(1, 9, 14, 5)
-    ctx.fillStyle = '#4a2914'
+    ctx.fillStyle = trim
     ctx.fillRect(0, 0, 16, 2)
-    ctx.fillRect(0, 7, 16, 2)
     ctx.fillRect(0, 14, 16, 2)
     ctx.fillRect(0, 0, 1, 16)
     ctx.fillRect(15, 0, 1, 16)
-    ctx.fillStyle = '#6f3d1b'
+    ctx.fillStyle = woodLight
+    ctx.fillRect(2, 2, 12, 5)
+    ctx.fillRect(2, 9, 12, 5)
+    ctx.fillStyle = woodDark
+    ctx.fillRect(2, 7, 12, 2)
     ctx.fillRect(4, 2, 1, 5)
     ctx.fillRect(11, 2, 1, 5)
     ctx.fillRect(4, 9, 1, 5)
     ctx.fillRect(11, 9, 1, 5)
-    ctx.fillStyle = '#2a1b10'
-    ctx.fillRect(7, 8, 2, 5)
-    ctx.fillStyle = '#d6a33c'
-    ctx.fillRect(7, 8, 2, 3)
-    ctx.fillStyle = '#f0c85c'
-    ctx.fillRect(8, 8, 1, 2)
   } else if (face === 'side') {
-    ctx.fillStyle = '#4a2914'
+    ctx.fillStyle = trim
     ctx.fillRect(0, 0, 16, 2)
-    ctx.fillRect(0, 7, 16, 2)
     ctx.fillRect(0, 14, 16, 2)
     ctx.fillRect(0, 0, 1, 16)
     ctx.fillRect(15, 0, 1, 16)
-    ctx.fillStyle = '#c47d3b'
+    ctx.fillStyle = woodLight
     ctx.fillRect(2, 2, 12, 5)
     ctx.fillRect(2, 9, 12, 5)
-    ctx.fillStyle = '#70401d'
+    ctx.fillStyle = woodDark
+    ctx.fillRect(2, 7, 12, 2)
     ctx.fillRect(5, 2, 1, 5)
     ctx.fillRect(10, 2, 1, 5)
     ctx.fillRect(5, 9, 1, 5)
     ctx.fillRect(10, 9, 1, 5)
-  } else {
-    ctx.fillStyle = '#4a2914'
+  } else if (face === 'top') {
+    ctx.fillStyle = trim
     ctx.fillRect(0, 0, 16, 1)
     ctx.fillRect(0, 15, 16, 1)
     ctx.fillRect(0, 0, 1, 16)
     ctx.fillRect(15, 0, 1, 16)
-    ctx.fillRect(7, 1, 2, 14)
-    ctx.fillStyle = '#d0924b'
-    ctx.fillRect(2, 2, 5, 12)
-    ctx.fillRect(9, 2, 5, 12)
-    ctx.fillStyle = '#70401d'
-    ctx.fillRect(3, 5, 1, 5)
-    ctx.fillRect(11, 5, 1, 5)
+    ctx.fillStyle = woodLight
+    ctx.fillRect(2, 2, 12, 12)
+    ctx.fillStyle = woodDark
+    ctx.fillRect(7, 2, 2, 12)
+    ctx.fillRect(3, 5, 3, 1)
+    ctx.fillRect(10, 10, 3, 1)
+  } else if (face === 'bottom') {
+    ctx.fillStyle = woodDark
+    ctx.fillRect(1, 1, 14, 14)
+    ctx.fillStyle = trim
+    ctx.fillRect(0, 0, 16, 1)
+    ctx.fillRect(0, 15, 16, 1)
+    ctx.fillRect(0, 0, 1, 16)
+    ctx.fillRect(15, 0, 1, 16)
+  } else if (face === 'lid_front') {
+    ctx.fillStyle = trim
+    ctx.fillRect(0, 0, 16, 2)
+    ctx.fillRect(0, 14, 16, 2)
+    ctx.fillRect(0, 0, 1, 16)
+    ctx.fillRect(15, 0, 1, 16)
+    ctx.fillStyle = woodLight
+    ctx.fillRect(2, 2, 12, 12)
+    ctx.fillStyle = woodDark
+    ctx.fillRect(2, 12, 12, 2)
+  } else {
+    ctx.fillStyle = trim
+    ctx.fillRect(0, 0, 16, 2)
+    ctx.fillRect(0, 14, 16, 2)
+    ctx.fillRect(0, 0, 1, 16)
+    ctx.fillRect(15, 0, 1, 16)
+    ctx.fillStyle = woodLight
+    ctx.fillRect(2, 2, 12, 12)
+    ctx.fillStyle = woodDark
+    ctx.fillRect(2, 12, 12, 2)
   }
 
   const texture = new THREE.CanvasTexture(canvas)

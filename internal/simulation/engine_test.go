@@ -268,3 +268,35 @@ func TestPauseAndResumeLifecycle(t *testing.T) {
 		t.Fatalf("expected tick=1 after resume, got tick=%d err=%v", resStep.Tick, err)
 	}
 }
+
+func TestPoweredImportBusMovesItemsIntoMEStorage(t *testing.T) {
+	prof := acceptanceProfile()
+	state, _, diags, err := Initialize(Snapshot{
+		SimulationID: "sim-import-bus",
+		Profile:      prof,
+		Blocks: []domain.PlacedBlock{
+			{ID: "energy-cell", BlockDefID: "ae2:energy_cell", X: -1, Y: 0, Z: 0, Config: map[string]any{"initial_charge_pct": 100}},
+			{ID: "controller", BlockDefID: "ae2:controller", X: 0, Y: 0, Z: 0},
+			{ID: "cable", BlockDefID: "ae2:fluix_cable", X: 1, Y: 0, Z: 0, Config: map[string]any{"subparts": map[string]any{"east": "ae2:import_bus"}}},
+			{ID: "drive", BlockDefID: "ae2:drive", X: 0, Y: 1, Z: 0, Config: map[string]any{"cells": []map[string]any{{"tier": "4k"}}}},
+			{ID: "chest", BlockDefID: "minecraft:chest", X: 2, Y: 0, Z: 0, Config: map[string]any{"inventory": []map[string]any{{"item_id": "minecraft:oak_log", "quantity": 4}}}},
+		},
+	})
+	if err != nil || len(diags) != 0 {
+		t.Fatalf("expected powered bus fixture to initialize cleanly, err=%v diags=%+v", err, diags)
+	}
+
+	result, err := Step(state, prof, nil)
+	if err != nil {
+		t.Fatalf("Step failed: %v", err)
+	}
+	if len(result.Events) != 1 || result.Events[0].EventType != "bus_transfer" {
+		t.Fatalf("expected one bus_transfer event, got %+v", result.Events)
+	}
+	if got := state.Storage.AvailableMap("net-1")["minecraft:oak_log"]; got != 1 {
+		t.Fatalf("expected one oak log imported per tick, got %d", got)
+	}
+	if got := state.Storage.ExternalInventories[0].Items[0].Quantity; got != 3 {
+		t.Fatalf("expected three oak logs remaining in chest, got %d", got)
+	}
+}

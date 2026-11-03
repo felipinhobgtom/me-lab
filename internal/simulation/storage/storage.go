@@ -31,9 +31,11 @@ type CellState struct {
 	Items        []domain.ItemStack `json:"items"`
 }
 
-// State holds all ME Drive storage cells across the simulated world.
+// State holds all ME Drive storage cells and external inventories/buses across the simulated world.
 type State struct {
-	Cells []*CellState `json:"cells"`
+	Cells               []*CellState              `json:"cells"`
+	ExternalInventories []*ExternalInventoryState `json:"external_inventories"`
+	Buses               []*BusState               `json:"buses"`
 }
 
 type rawCellConfig struct {
@@ -97,7 +99,9 @@ func Initialize(
 	}
 
 	st := &State{
-		Cells: make([]*CellState, 0),
+		Cells:               make([]*CellState, 0),
+		ExternalInventories: make([]*ExternalInventoryState, 0),
+		Buses:               make([]*BusState, 0),
 	}
 	diags := make([]domain.Diagnostic, 0)
 
@@ -192,7 +196,7 @@ func Initialize(
 	return st, diagnostics.DeduplicateAndSort(diags)
 }
 
-// SyncOnlineStatus updates every cell's Online flag from current network energy and channel states.
+// SyncOnlineStatus updates every storage cell and automation bus from current network power/channel state.
 func (s *State) SyncOnlineStatus(energyStates []*energy.NetworkEnergy, hasChannel map[string]bool) {
 	if s == nil {
 		return
@@ -207,6 +211,7 @@ func (s *State) SyncOnlineStatus(energyStates []*energy.NetworkEnergy, hasChanne
 		}
 		c.Online = netOnline[c.NetworkID] && c.HasChannel
 	}
+	s.SyncAutomationOnlineStatus(energyStates, hasChannel)
 }
 
 // TypesUsed returns the count of distinct item types currently stored in this cell.

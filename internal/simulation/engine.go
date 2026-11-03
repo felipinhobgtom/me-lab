@@ -141,10 +141,11 @@ func Initialize(snapshot Snapshot) (*EngineState, []domain.SimulationEvent, []do
 	// 4. Initialize network energy buffers, generation, passive consumption, and online states.
 	energyStates, energyDiags := energy.Initialize(simID, nets, alloc, snapshot.Profile)
 	energy.BridgeQuartzFibers(simID, w, nets, energyStates, &energyDiags, alloc)
+	syncDeviceRouteOnline(alloc, energyStates)
 
-	// 5. Initialize ME Drives & Storage Cells (+ merge project initial inventory).
+	// 5. Initialize ME Drives & Storage Cells and deterministic external automation targets.
 	storeState, storeDiags := storage.Initialize(simID, nets, alloc, energyStates, snapshot.Inventory, snapshot.Profile)
-
+	storage.InitializeAutomation(storeState, w, nets, alloc, energyStates)
 	// 6. Initialize Pattern Providers, Crafting CPUs, Assemblers/External Machines, and plan CraftingRequests.
 	nextSeq := 1
 	emitter := crafting.EventEmitter{
@@ -279,8 +280,9 @@ func Step(
 	}
 	energyDiags := energy.StepEnergy(state.SimulationID, state.Energy, netsForEnergy, activeAssemblers, tempAlloc, profile)
 	state.CableOverlays = tempAlloc.CableOverlays
+	syncStateDeviceRouteOnline(state)
 
-	// Sync online status across ME Storage and Crafting providers/CPUs.
+	// Sync online status across ME Storage, automation buses, and Crafting providers/CPUs.
 	if state.Storage != nil {
 		state.Storage.SyncOnlineStatus(state.Energy, state.HasChannelByBlockID)
 	}
@@ -288,18 +290,34 @@ func Step(
 		state.Crafting.SyncOnlineStatus(state.Energy, state.HasChannelByBlockID)
 	}
 
-	// 2. Advance running Molecular Assemblers & External Machines, return outputs, and dispatch ready batches.
 	emitter := crafting.EventEmitter{
 		SimulationID: state.SimulationID,
 		NextSequence: &state.NextSequence,
 	}
-	tickEvents, craftStepDiags := state.Crafting.StepTick(
+	tickEvents := make([]domain.SimulationEvent, 0)
+	if state.Storage != nil {
+		onlineByNetwork := make(map[string]bool, len(state.Energy))
+		for _, es := range state.Energy {
+			onlineByNetwork[es.NetworkID] = es.Online
+		}
+		for _, transfer := range state.Storage.StepBuses(onlineByNetwork) {
+			tickEvents = append(tickEvents, emitter.Emit(tick, "bus_transfer", map[string]any{
+				"bus_id": transfer.BusID, "kind": transfer.Kind, "network_id": transfer.NetworkID,
+				"source_id": transfer.SourceID, "target_id": transfer.TargetID,
+				"item_id": transfer.ItemID, "quantity": transfer.Quantity,
+			}))
+		}
+	}
+
+	// 2. Advance running Molecular Assemblers & External Machines, return outputs, and dispatch ready batches.
+	craftEvents, craftStepDiags := state.Crafting.StepTick(
 		state.SimulationID,
 		tick,
 		state.Energy,
 		state.Storage,
 		emitter,
 	)
+	tickEvents = append(tickEvents, craftEvents...)
 
 	// Persist permanent crafting/storage errors (e.g. NO_ADJACENT_CRAFTING_INVENTORY, STORAGE_FULL)
 	// while keeping PROVIDER_BLOCKED and INSUFFICIENT_ENERGY scoped to current tick conditions.
@@ -435,6 +453,34 @@ func UnmarshalSnapshot(data []byte) (Snapshot, error) {
 	return snap, nil
 }
 
+func syncDeviceRouteOnline(alloc *channels.Allocation, states []*energy.NetworkEnergy) {
+	if alloc == nil {
+		return
+	}
+	onlineByNetwork := make(map[string]bool, len(states))
+	for _, state := range states {
+		onlineByNetwork[state.NetworkID] = state.Online
+	}
+	for i := range alloc.DeviceRoutes {
+		route := &alloc.DeviceRoutes[i]
+		route.Online = route.HasChannel && onlineByNetwork[route.NetworkID]
+	}
+}
+
+func syncStateDeviceRouteOnline(state *EngineState) {
+	if state == nil {
+		return
+	}
+	onlineByNetwork := make(map[string]bool, len(state.Energy))
+	for _, energyState := range state.Energy {
+		onlineByNetwork[energyState.NetworkID] = energyState.Online
+	}
+	for i := range state.DeviceRoutes {
+		route := &state.DeviceRoutes[i]
+		route.Online = route.HasChannel && onlineByNetwork[route.NetworkID]
+	}
+}
+
 func computeStatus(state *EngineState, hasJobs bool) domain.SimulationStatus {
 	if state.Status == domain.SimStatusPaused {
 		return domain.SimStatusPaused
@@ -513,10 +559,14 @@ func (s *EngineState) recomputeSummaryAndOverlay() {
 	itemsStored, storageBytesUsed, storageCapacity := 0, 0, 0
 	cellViews := []domain.StorageCellView{}
 	storedTotals := []domain.ItemStack{}
+	automationBuses := []domain.AutomationBusOverlay{}
+	externalInventories := []domain.ExternalInventoryView{}
 	if s.Storage != nil {
 		itemsStored, storageBytesUsed, storageCapacity = s.Storage.SummaryMetrics()
 		cellViews = s.Storage.CellViews()
 		storedTotals = s.Storage.AvailableTotals()
+		automationBuses = s.Storage.BusViews()
+		externalInventories = s.Storage.ExternalInventoryViews()
 	}
 
 	activeJobs, completedJobs, failedJobs := 0, 0, 0
@@ -554,11 +604,13 @@ func (s *EngineState) recomputeSummaryAndOverlay() {
 	}
 
 	s.Overlay = domain.TopologyOverlay{
-		Networks:     netOverlays,
-		Cables:       cables,
-		DeviceRoutes: routes,
-		StorageCells: cellViews,
-		StoredTotals: storedTotals,
-		CraftingJobs: jobViews,
+		Networks:            netOverlays,
+		Cables:              cables,
+		DeviceRoutes:        routes,
+		StorageCells:        cellViews,
+		StoredTotals:        storedTotals,
+		CraftingJobs:        jobViews,
+		AutomationBuses:     automationBuses,
+		ExternalInventories: externalInventories,
 	}
 }

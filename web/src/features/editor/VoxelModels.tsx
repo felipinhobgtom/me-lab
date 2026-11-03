@@ -857,13 +857,16 @@ export function VoxelBlockModel({
     const frontTex = getMinecraftChestTexture('front')
     const sideTex = getMinecraftChestTexture('side')
     const topTex = getMinecraftChestTexture('top')
-    const chestMats = buildCubeMaterials({
-      north: sideTex,
-      south: frontTex,
-      east: sideTex,
-      west: sideTex,
-      up: topTex,
-      down: sideTex,
+    const bottomTex = getMinecraftChestTexture('bottom')
+    const lidFrontTex = getMinecraftChestTexture('lid_front')
+    const lidSideTex = getMinecraftChestTexture('lid_side')
+    const bodyMats = buildCubeMaterials({
+      ...orientHorizontalFaces(block.facing, frontTex, sideTex, sideTex, sideTex, bottomTex),
+      opacity,
+      transparent: isGhost,
+    })
+    const lidMats = buildCubeMaterials({
+      ...orientHorizontalFaces(block.facing, lidFrontTex, lidSideTex, lidSideTex, topTex, lidSideTex),
       opacity,
       transparent: isGhost,
     })
@@ -877,10 +880,10 @@ export function VoxelBlockModel({
             : 0
     return (
       <group rotation={[0, yaw, 0]}>
-        <mesh position={[0, -0.08, 0]} material={chestMats}>
+        <mesh position={[0, -0.08, 0]} material={bodyMats}>
           <boxGeometry args={[0.86, 0.58, 0.82]} />
         </mesh>
-        <mesh position={[0, 0.3, 0]} material={chestMats}>
+        <mesh position={[0, 0.3, 0]} material={lidMats}>
           <boxGeometry args={[0.86, 0.18, 0.82]} />
         </mesh>
         <mesh position={[0, 0.03, 0.425]}>
