@@ -13,6 +13,7 @@ import type {
   TopologyOverlay,
 } from '../lib/api'
 import { useEditorStore } from '../features/editor/store'
+import { getBlockNetworkStatus } from '../features/editor/networkStatus'
 import { SANDBOX_PRESETS } from '../features/projects/fixtures'
 
 // Test stub: the UI never reads the engine-side profile numbers, so an empty object is enough here.
@@ -213,11 +214,32 @@ describe('ME Lab zero-login AE2 sandbox', () => {
 
     await waitFor(() => expect(createSimulation).toHaveBeenCalledTimes(1), { timeout: 2000 })
     await waitFor(() => expect(stepSimulation).toHaveBeenCalled(), { timeout: 2000 })
-    expect(screen.getByText('ME NETWORK RUNTIME')).toBeInTheDocument()
+    expect(screen.getByTestId('runtime-status-chip')).toHaveTextContent(/ME ONLINE/)
+    expect(screen.queryByText('ME Network Runtime')).toBeNull()
     expect(screen.queryByRole('button', { name: /simulate/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /validate/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /start simulation/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /step/i })).toBeNull()
+  })
+
+  it('maps live AE2 failures to compact block status states', () => {
+    expect(
+      getBlockNetworkStatus({
+        route: { has_channel: false, online: false } as never,
+      }).kind
+    ).toBe('missing_channel')
+
+    expect(
+      getBlockNetworkStatus({
+        diagnostic: { code: 'INSUFFICIENT_ENERGY' } as never,
+      }).kind
+    ).toBe('insufficient_energy')
+
+    expect(
+      getBlockNetworkStatus({
+        network: { has_controller: true, controller_valid: false } as never,
+      }).kind
+    ).toBe('invalid_controller')
   })
 
   it('opens a block context menu with properties and removal actions', async () => {

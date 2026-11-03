@@ -9,7 +9,6 @@ import {
 } from '@/lib/ae2/constants'
 import { BlockInspector } from '../inspector/BlockInspector'
 import { SANDBOX_PRESETS } from '../projects/fixtures'
-import { SimulationConsole } from '../simulation/SimulationConsole'
 import { useEditorStore } from './store'
 import { getBlockIconUrl } from './textures'
 import { Workspace2D } from './Workspace2D'
@@ -426,6 +425,25 @@ export function EditorLayout() {
 
   const activeSummary = simulationRun?.summary ?? validationResult?.summary ?? null
   const errorCount = diagnostics.filter((d) => d.severity === 'error').length
+  const runtimeDiagnostic = diagnostics.find((d) => d.severity === 'error') ?? diagnostics[0]
+  const runtimeState =
+    !simulationRun
+      ? 'starting'
+      : simulationRun.status === 'failed' ||
+          (activeSummary?.networks ?? 0) > 0 && activeSummary?.online_networks === 0
+        ? 'offline'
+        : errorCount > 0
+          ? 'warning'
+          : 'online'
+  const runtimeLabel =
+    runtimeState === 'offline' ? 'OFFLINE' : runtimeState === 'warning' ? 'ATTENTION' : runtimeState.toUpperCase()
+  const runtimeTitle = runtimeDiagnostic
+    ? `${runtimeDiagnostic.code}: ${runtimeDiagnostic.message}${
+        runtimeDiagnostic.remediation ? ` ${runtimeDiagnostic.remediation}` : ''
+      }`
+    : simulationRun
+      ? `Live AE2 runtime · tick ${simulationRun.current_tick}`
+      : 'Live AE2 runtime is starting'
 
   const contextBlock = blockContextMenu
     ? blocks.find((block) => block.id === blockContextMenu.blockId) ?? null
@@ -810,8 +828,16 @@ export function EditorLayout() {
           Channels
         </button>
 
-        <span className="badge badge-exact" aria-label="ME runtime status">
-          RUNTIME {simulationRun?.status.toUpperCase() ?? 'STARTING'}
+        <span
+          className={`runtime-state-chip runtime-state-${runtimeState}`}
+          aria-label="ME runtime status"
+          title={runtimeTitle}
+          data-testid="runtime-status-chip"
+        >
+          <span className="runtime-state-dot" aria-hidden="true" />
+          ME {runtimeLabel}
+          {simulationRun ? ` · TICK ${simulationRun.current_tick}` : ''}
+          {errorCount > 0 ? ` · ${errorCount}` : ''}
         </span>
       </div>
 
@@ -1063,18 +1089,6 @@ export function EditorLayout() {
         </div>
       )}
 
-      {/* Always-on ME runtime monitor; execution is automatic and has no run controls. */}
-      {simulationRun && (
-        <div className="floating-sim-panel">
-          <div className="floating-panel-bar">
-            <span>ME Network Runtime</span>
-            <span className="badge">TICK {simulationRun.current_tick}</span>
-          </div>
-          <div className="floating-sim-body">
-            <SimulationConsole />
-          </div>
-        </div>
-      )}
 
       {/* Export Blueprint / Build Sheet Modal */}
       {exportModal && (

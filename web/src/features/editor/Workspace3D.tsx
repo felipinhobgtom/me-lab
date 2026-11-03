@@ -4,10 +4,14 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type {
+  AutomationBusOverlay,
   BlockDefinition,
   CableChannelOverlay,
   Coord3D,
+  DeviceRouteOverlay,
+  Diagnostic,
   Direction,
+  NetworkSummaryOverlay,
   PlacedBlock,
 } from '@/lib/api'
 import {
@@ -21,6 +25,7 @@ import {
   readCableConfig,
 } from '@/lib/ae2/constants'
 import { selectActiveOverlay, useEditorStore, type CameraPreset } from './store'
+import { getBlockNetworkStatus, type BlockNetworkStatus } from './networkStatus'
 import { VoxelBlockModel } from './VoxelModels'
 import { Workspace2D } from './Workspace2D'
 
@@ -213,6 +218,23 @@ function DiagnosticPulseBox({ active }: { active: boolean }) {
   )
 }
 
+
+function NetworkFaultOverlay({ status }: { status: BlockNetworkStatus }) {
+  if (status.kind === 'online') return null
+  const color = status.kind === 'missing_channel' ? '#f59e0b' : '#ef4444'
+  return (
+    <mesh renderOrder={2}>
+      <boxGeometry args={[1.035, 1.035, 1.035]} />
+      <meshBasicMaterial
+        color={color}
+        transparent
+        opacity={0.13}
+        depthWrite={false}
+      />
+    </mesh>
+  )
+}
+
 interface HoverTarget {
   placeCoord: Coord3D
   clickedBlockId?: string
@@ -243,6 +265,7 @@ function VoxelSandboxScene({ onBlockContextMenu }: Workspace3DProps) {
   const highlightedCoords = useEditorStore((s) => s.highlightedCoords)
   const validationResult = useEditorStore((s) => s.validationResult)
   const simulationRun = useEditorStore((s) => s.simulationRun)
+  const diagnostics = useEditorStore((s) => s.diagnostics)
 
   const selectBlock = useEditorStore((s) => s.selectBlock)
   const setActiveBlockDefId = useEditorStore((s) => s.setActiveBlockDefId)
@@ -260,6 +283,7 @@ function VoxelSandboxScene({ onBlockContextMenu }: Workspace3DProps) {
   const [isDragging, setIsDragging] = useState(false)
 
   const [hoverTarget, setHoverTarget] = useState<HoverTarget | null>(null)
+  const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null)
   const pointerDownRef = useRef<{ x: number; y: number } | null>(null)
 
   const recordPointerDown = (e: ThreeEvent<PointerEvent>) => {
@@ -304,26 +328,39 @@ function VoxelSandboxScene({ onBlockContextMenu }: Workspace3DProps) {
   }, [activeOverlay])
 
   const deviceRouteById = useMemo(() => {
-    const m = new Map<string, { has_channel: boolean; network_id: string }>()
+    const m = new Map<string, DeviceRouteOverlay>()
     if (activeOverlay) {
-      for (const r of activeOverlay.device_routes) {
-        m.set(r.block_id, { has_channel: r.has_channel, network_id: r.network_id })
-      }
+      for (const r of activeOverlay.device_routes) m.set(r.block_id, r)
     }
     return m
   }, [activeOverlay])
 
-  const invalidControllerNetIds = useMemo(() => {
-    const out: Record<string, true> = {}
+  const automationBusById = useMemo(() => {
+    const m = new Map<string, AutomationBusOverlay>()
     if (activeOverlay) {
-      for (const n of activeOverlay.networks) {
-        if (n.has_controller && !n.controller_valid) {
-          out[n.id] = true
-        }
+      for (const bus of activeOverlay.automation_buses) m.set(bus.block_id, bus)
+    }
+    return m
+  }, [activeOverlay])
+
+  const networkById = useMemo(() => {
+    const m = new Map<string, NetworkSummaryOverlay>()
+    if (activeOverlay) {
+      for (const network of activeOverlay.networks) m.set(network.id, network)
+    }
+    return m
+  }, [activeOverlay])
+
+  const diagnosticByBlockId = useMemo(() => {
+    const m = new Map<string, Diagnostic>()
+    for (const diagnostic of diagnostics) {
+      for (const block of diagnostic.affected_blocks) {
+        if (!m.has(block.id)) m.set(block.id, diagnostic)
       }
     }
-    return out
-  }, [activeOverlay])
+    return m
+  }, [diagnostics])
+
 
   const isRunningJobs = Boolean(
     activeOverlay?.crafting_jobs.some((j) => j.status === 'running')
@@ -611,6 +648,15 @@ function VoxelSandboxScene({ onBlockContextMenu }: Workspace3DProps) {
         const def = catalogMap.get(block.block_def_id)
         const cOverlay = cableOverlayById.get(block.id)
         const dRoute = deviceRouteById.get(block.id)
+        const busOverlay = automationBusById.get(block.id)
+        const networkId = cOverlay?.network_id ?? dRoute?.network_id ?? busOverlay?.network_id
+        const status = getBlockNetworkStatus({
+          cable: cOverlay,
+          route: dRoute,
+          bus: busOverlay,
+          network: networkId ? networkById.get(networkId) : undefined,
+          diagnostic: diagnosticByBlockId.get(block.id),
+        })
         const connectedDirs = computeConnectedDirections(
           block,
           blocksByCoord,
@@ -622,16 +668,8 @@ function VoxelSandboxScene({ onBlockContextMenu }: Workspace3DProps) {
           overlays.warnings && highlightedSet.has(coordKey(block.x, block.y, block.z))
         const isDragTarget = dragStateRef.current?.blockIds.includes(block.id) ?? false
         const renderOffset = isDragTarget ? dragOffset : { x: 0, y: 0, z: 0 }
-
-        const online =
-          cOverlay !== undefined
-            ? cOverlay.online
-            : dRoute !== undefined
-              ? dRoute.has_channel
-              : true
-        const invalidCtrl = Boolean(
-          cOverlay?.network_id && invalidControllerNetIds[cOverlay.network_id]
-        )
+        const online = status.kind === 'online'
+        const invalidCtrl = status.kind === 'invalid_controller'
 
         return (
           <group
@@ -643,6 +681,14 @@ function VoxelSandboxScene({ onBlockContextMenu }: Workspace3DProps) {
             ]}
             onPointerDown={(e) => handleBlockPointerDown(block, e)}
             onPointerMove={(e) => handleBlockDragMove(block, e)}
+            onPointerOver={(e) => {
+              e.stopPropagation()
+              setHoveredBlockId(block.id)
+            }}
+            onPointerOut={(e) => {
+              e.stopPropagation()
+              setHoveredBlockId((current) => (current === block.id ? null : current))
+            }}
             onClick={(e) => handleBlockClick(block, e)}
             onDoubleClick={(e) => handleBlockDoubleClick(block, e)}
             onContextMenu={(e) => handleBlockContextMenu(block, e)}
@@ -664,6 +710,7 @@ function VoxelSandboxScene({ onBlockContextMenu }: Workspace3DProps) {
               invalidController={invalidCtrl}
               isCraftingActive={isRunningJobs}
             />
+            <NetworkFaultOverlay status={status} />
 
             {/* Subtle Minecraft black/white selection box */}
             {isSelected && (
@@ -675,6 +722,18 @@ function VoxelSandboxScene({ onBlockContextMenu }: Workspace3DProps) {
 
             {/* Crimson diagnostic fault wireframe when inspecting errors */}
             <DiagnosticPulseBox active={isDiagHighlighted} />
+            {hoveredBlockId === block.id && status.kind !== 'online' && (
+              <Html position={[0, 0.96, 0]} center distanceFactor={10}>
+                <div
+                  className={`block-network-tooltip block-network-tooltip-${status.kind}`}
+                  role="status"
+                  aria-label={status.label}
+                >
+                  <strong>{status.label}</strong>
+                  <span>{status.detail}</span>
+                </div>
+              </Html>
+            )}
 
             {/* Optional Opt-In Channel Overlay Tag (off by default to keep scene clean!) */}
             {overlays.channels && (cOverlay || dRoute) && (
