@@ -156,3 +156,11 @@ Ref: [Patterns](https://guide.appliedenergistics.org/1.21.1/items-blocks-machine
 - Processing patterns are dispatched to adjacent external machines; the simulator uses the configured processing duration and `auto_return` behavior.
 - A Pattern Provider never becomes an item buffer for its ingredients: the CPU job pool is the source of the batch, and the result must return to ME storage or a provider return path.
 - Provider priority, blocking mode, lock-until-result, CPU capacity, co-processors, recursive-cycle detection, and deterministic coordinate tie-breaks are part of job planning.
+
+### 2.9 Continuous Runtime Contract
+Ref: [Channels](https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/channels), [Energy](https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/energy), and [Autocrafting](https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/autocrafting)
+
+- The saved project layout is the source of truth. After each successful automatic persistence, the live ME runtime is recreated from that layout without a user-triggered validation or simulation action.
+- While the editor is open, the runtime advances continuously at a Minecraft-equivalent cadence: the browser transport batches five engine ticks every 250 ms, yielding 20 engine ticks per second. This batching is only a transport optimization; all engine rules remain tick-based.
+- Each tick observes and applies the documented channel routing, powered-network availability, energy buffer, storage-cell insertion/extraction, bus automation, pattern-provider dispatch, and crafting-CPU progression rules. Diagnostics and telemetry report the current state but never start, pause, reset, or gate execution.
+- The UI exposes runtime status, tick, diagnostics, events, jobs, and telemetry as read-only observations. There are no manual Validate, Simulate, Step, Pause, Resume, or Reset controls.

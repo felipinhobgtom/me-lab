@@ -3,7 +3,15 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { api } from '../lib/api'
-import type { BlockDefinition, CompatibilityProfile, PlacedBlock, Project } from '../lib/api'
+import type {
+  BlockDefinition,
+  CompatibilityProfile,
+  PlacedBlock,
+  Project,
+  SimulationRun,
+  SimulationStepResult,
+  TopologyOverlay,
+} from '../lib/api'
 import { useEditorStore } from '../features/editor/store'
 import { SANDBOX_PRESETS } from '../features/projects/fixtures'
 
@@ -73,8 +81,71 @@ function mockBackend(initialBlocks: PlacedBlock[] = []) {
   const createProject = vi.spyOn(api, 'createProject').mockResolvedValue(project)
   vi.spyOn(api, 'listBlockDefinitions').mockResolvedValue(catalog)
   vi.spyOn(api, 'listBlocks').mockResolvedValue(initialBlocks)
-  const batch = vi.spyOn(api, 'batchBlocks').mockResolvedValue({ results: [] })
-  return { getProject, createProject, batch }
+  const batch = vi.spyOn(api, 'batchBlocks').mockImplementation(async (_projectId, operations) => ({
+    results: operations.map((operation, index) => ({
+      id: `saved-${index}`,
+      project_id: project.id,
+      block_def_id: operation.data?.block_def_id ?? 'ae2:controller',
+      x: operation.data?.x ?? 0,
+      y: operation.data?.y ?? 0,
+      z: operation.data?.z ?? 0,
+      facing: operation.data?.facing ?? 'south',
+      config: operation.data?.config ?? {},
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+    })),
+  }))
+  const overlay: TopologyOverlay = {
+    networks: [],
+    cables: [],
+    device_routes: [],
+    storage_cells: [],
+    stored_totals: [],
+    crafting_jobs: [],
+    automation_buses: [],
+    external_inventories: [],
+  }
+  const runtime: SimulationRun = {
+    id: 'runtime-1',
+    project_id: project.id,
+    status: 'running',
+    seed: 1,
+    current_tick: 0,
+    summary: {
+      networks: 0,
+      online_networks: 0,
+      channels_used: 0,
+      channels_available: 0,
+      energy_stored: 0,
+      energy_capacity: 0,
+      energy_generation: 0,
+      energy_consumption: 0,
+      items_stored: 0,
+      storage_bytes_used: 0,
+      storage_capacity: 0,
+      active_jobs: 0,
+      completed_jobs: 0,
+      failed_jobs: 0,
+      diagnostics_count: 0,
+    },
+    overlay,
+    started_at: '2026-01-01T00:00:00Z',
+  }
+  const createSimulation = vi.spyOn(api, 'createSimulation').mockResolvedValue(runtime)
+  vi.spyOn(api, 'getSimulationEvents').mockResolvedValue({
+    data: [],
+    pagination: { page: 1, page_size: 100, total: 0 },
+  })
+  vi.spyOn(api, 'getSimulationDiagnostics').mockResolvedValue([])
+  const stepSimulation = vi.spyOn(api, 'stepSimulation').mockImplementation(
+    async (_simulationId, ticks = 1): Promise<SimulationStepResult> => ({
+      tick: ticks,
+      events: [],
+      diagnostics: [],
+      state: { ...runtime, current_tick: ticks },
+    }),
+  )
+  return { getProject, createProject, batch, createSimulation, stepSimulation }
 }
 
 function renderApp() {
@@ -102,6 +173,24 @@ describe('ME Lab zero-login AE2 sandbox', () => {
     expect(screen.queryByText(/Workspace Projects/i)).toBeNull()
     expect(useEditorStore.getState().blocks).toHaveLength(0)
     expect(window.localStorage.getItem('melab_sandbox_project_id')).toBe('proj-1')
+  })
+
+  it('starts and advances the ME runtime without manual execution controls', async () => {
+    const { createSimulation, stepSimulation } = mockBackend()
+    renderApp()
+    await screen.findByText(/Empty Sandbox/i)
+
+    const state = useEditorStore.getState()
+    state.setActiveBlockDefId('ae2:controller')
+    state.placeBlockAt({ x: 0, y: 0, z: 0 }, 'south')
+
+    await waitFor(() => expect(createSimulation).toHaveBeenCalledTimes(1), { timeout: 2000 })
+    await waitFor(() => expect(stepSimulation).toHaveBeenCalled(), { timeout: 2000 })
+    expect(screen.getByText('ME NETWORK RUNTIME')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /simulate/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /validate/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /start simulation/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /step/i })).toBeNull()
   })
 
   it('opens a block context menu with properties and removal actions', async () => {

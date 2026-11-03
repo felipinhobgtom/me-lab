@@ -898,6 +898,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedBlockIds: nextSelectedIds,
         saveStatus: 'saved',
         saveError: null,
+        validationResult: null,
+        simulationRun: null,
+        events: [],
+        diagnostics: [],
+        selectedDiagnosticId: null,
+        highlightedCoords: [],
       })
       return true
     } catch (err) {

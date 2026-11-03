@@ -39,19 +39,11 @@
   color: var(--text-secondary);
 }
 
-.sim-item-input {
-  width: 170px;
-  font-family: var(--font-mono);
+.sim-runtime-note {
+  color: var(--text-secondary);
   font-size: 11px;
-  padding: 4px 8px;
 }
 
-.sim-qty-input {
-  width: 62px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 4px 6px;
-}
 
 .sim-status-group {
   display: flex;

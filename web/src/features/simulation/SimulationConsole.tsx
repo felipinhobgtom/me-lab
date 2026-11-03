@@ -9,30 +9,21 @@ export function SimulationConsole() {
   const selectedDiagnosticId = useEditorStore((s) => s.selectedDiagnosticId)
   const highlightedCoords = useEditorStore((s) => s.highlightedCoords)
   const events = useEditorStore((s) => s.events)
-  const validationResult = useEditorStore((s) => s.validationResult)
   const simulationRun = useEditorStore((s) => s.simulationRun)
-  const actionBusy = useEditorStore((s) => s.actionBusy)
   const actionError = useEditorStore((s) => s.actionError)
 
   const selectDiagnostic = useEditorStore((s) => s.selectDiagnostic)
   const clearHighlights = useEditorStore((s) => s.clearHighlights)
-  const startSimulation = useEditorStore((s) => s.startSimulation)
-  const stepSimulation = useEditorStore((s) => s.stepSimulation)
-  const pauseSimulation = useEditorStore((s) => s.pauseSimulation)
-  const resumeSimulation = useEditorStore((s) => s.resumeSimulation)
-  const resetSimulation = useEditorStore((s) => s.resetSimulation)
 
   const [tab, setTab] = useState<ConsoleTab>('diagnostics')
   const [collapsed, setCollapsed] = useState<boolean>(false)
-  const [craftItemId, setCraftItemId] = useState<string>('minecraft:chest')
-  const [craftQuantity, setCraftQuantity] = useState<number>(2)
 
   const activeOverlay = useMemo(
-    () => selectActiveOverlay({ simulationRun, validationResult }),
-    [simulationRun, validationResult]
+    () => selectActiveOverlay({ simulationRun, validationResult: null }),
+    [simulationRun]
   )
 
-  const activeSummary = simulationRun?.summary ?? validationResult?.summary ?? null
+  const activeSummary = simulationRun?.summary ?? null
   const craftingJobs = activeOverlay?.crafting_jobs ?? []
   const networks = activeOverlay?.networks ?? []
   const storageCells = activeOverlay?.storage_cells ?? []
@@ -46,118 +37,21 @@ export function SimulationConsole() {
     [events]
   )
 
-  const handleStartSimulation = async () => {
-    const trimmedItem = craftItemId.trim()
-    const requests = trimmedItem
-      ? [
-          {
-            item_id: trimmedItem,
-            quantity: Math.max(1, Math.floor(craftQuantity)),
-            source: 'terminal',
-          },
-        ]
-      : []
-    const run = await startSimulation(requests)
-    if (run && (run.overlay?.crafting_jobs?.length ?? 0) > 0) {
-      setTab('jobs')
-    }
-  }
-
   return (
     <section
       className={`simulation-console ${collapsed ? 'collapsed' : ''}`}
-      aria-label="Simulation Console"
+      aria-label="ME Network Runtime"
     >
       <div className="sim-control-bar">
         <div className="sim-request-group">
-          <span className="sim-request-label">Craft Request</span>
-          <input
-            type="text"
-            aria-label="Craft Item ID"
-            className="sim-item-input"
-            placeholder="minecraft:chest"
-            value={craftItemId}
-            onChange={(e) => setCraftItemId(e.target.value)}
-          />
-          <input
-            type="number"
-            min={1}
-            aria-label="Craft Quantity"
-            className="sim-qty-input"
-            value={craftQuantity}
-            onChange={(e) => setCraftQuantity(Math.max(1, Number(e.target.value) || 1))}
-          />
-
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={actionBusy}
-            onClick={() => void handleStartSimulation()}
-          >
-            Start Simulation
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-certus"
-            disabled={!simulationRun || actionBusy}
-            onClick={() => void stepSimulation(1)}
-          >
-            Step +1
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-certus"
-            disabled={!simulationRun || actionBusy}
-            onClick={() => void stepSimulation(5)}
-          >
-            Step +5
-          </button>
-
-          <button
-            type="button"
-            className="btn"
-            disabled={!simulationRun || actionBusy || simulationRun.status === 'paused'}
-            onClick={() => void pauseSimulation()}
-          >
-            Pause
-          </button>
-
-          <button
-            type="button"
-            className="btn"
-            disabled={!simulationRun || actionBusy || simulationRun.status !== 'paused'}
-            onClick={() => void resumeSimulation()}
-          >
-            Resume
-          </button>
-
-          <button
-            type="button"
-            className="btn"
-            disabled={!simulationRun || actionBusy}
-            onClick={() => void resetSimulation()}
-          >
-            Reset
-          </button>
+          <span className="sim-request-label">ME NETWORK RUNTIME</span>
+          <span className="badge badge-exact">AUTOMATIC</span>
+          <span className="sim-runtime-note">20 TPS · power, channels, storage and crafting update live</span>
         </div>
-
         <div className="sim-status-group">
-          {validationResult && (
-            <span
-              className={`badge ${
-                validationResult.valid ? 'badge-exact' : 'badge-unsupported'
-              }`}
-            >
-              {validationResult.valid ? 'VALID TOPOLOGY' : 'TOPOLOGY FAULT'}
-            </span>
-          )}
           {simulationRun && (
             <>
-              <span className="badge">
-                SIM: {simulationRun.status.toUpperCase()}
-              </span>
+              <span className="badge">RUNTIME: {simulationRun.status.toUpperCase()}</span>
               <span className="badge">TICK {simulationRun.current_tick}</span>
             </>
           )}
@@ -174,7 +68,7 @@ export function SimulationConsole() {
       {!collapsed && (
         <>
           <div className="sim-tabs-row">
-            <div className="sim-tabs" role="tablist" aria-label="Simulation Console Tabs">
+            <div className="sim-tabs" role="tablist" aria-label="ME Runtime Tabs">
               <button
                 type="button"
                 role="tab"
@@ -237,9 +131,9 @@ export function SimulationConsole() {
               <>
                 {diagnostics.length === 0 ? (
                   <div className="sim-empty-note">
-                    {validationResult || simulationRun
-                      ? 'Zero diagnostics reported — all AE2 channel, controller, energy, storage, and CPU checks passed.'
-                      : 'Click Validate or Start Simulation to analyze your AE2 network topology.'}
+                    {simulationRun
+                      ? 'Zero runtime diagnostics reported — the live AE2 network is operating without faults.'
+                      : 'Runtime is initializing from the saved layout.'}
                   </div>
                 ) : (
                   <div className="diag-list">
@@ -291,8 +185,7 @@ export function SimulationConsole() {
               <>
                 {sortedEvents.length === 0 ? (
                   <div className="sim-empty-note">
-                    No discrete simulation events recorded yet. Start a simulation and step ticks
-                    forward to trace deterministic execution.
+                    No runtime events recorded yet. The live network will append events as ticks advance.
                   </div>
                 ) : (
                   <table className="events-table">
@@ -328,8 +221,7 @@ export function SimulationConsole() {
               <>
                 {craftingJobs.length === 0 ? (
                   <div className="sim-empty-note">
-                    No active or completed Crafting CPU jobs in the current run. Enter an item ID
-                    above (e.g. <code>minecraft:chest</code>) and click Start Simulation.
+                    No active or completed Crafting CPU jobs in the live runtime.
                   </div>
                 ) : (
                   <div className="telemetry-grid">
@@ -419,8 +311,7 @@ export function SimulationConsole() {
               <>
                 {!activeSummary ? (
                   <div className="sim-empty-note">
-                    Run Validate or Start Simulation to compute channel load, AE/t energy balance,
-                    and storage cell byte/type occupancy.
+                    The live runtime is still initializing channel, energy, storage and crafting state.
                   </div>
                 ) : (
                   <div className="telemetry-grid">

@@ -57,10 +57,8 @@ export function EditorLayout() {
   const placementFacing = useEditorStore((s) => s.placementFacing)
   const selectedBlockIds = useEditorStore((s) => s.selectedBlockIds)
   const inspectorOpen = useEditorStore((s) => s.inspectorOpen)
-  const simDrawerOpen = useEditorStore((s) => s.simDrawerOpen)
   const overlays = useEditorStore((s) => s.overlays)
   const saveStatus = useEditorStore((s) => s.saveStatus)
-  const actionBusy = useEditorStore((s) => s.actionBusy)
   const validationResult = useEditorStore((s) => s.validationResult)
   const simulationRun = useEditorStore((s) => s.simulationRun)
   const diagnostics = useEditorStore((s) => s.diagnostics)
@@ -72,7 +70,6 @@ export function EditorLayout() {
   const setActiveBlockDefId = useEditorStore((s) => s.setActiveBlockDefId)
   const setActiveCableColor = useEditorStore((s) => s.setActiveCableColor)
   const setInspectorOpen = useEditorStore((s) => s.setInspectorOpen)
-  const setSimDrawerOpen = useEditorStore((s) => s.setSimDrawerOpen)
   const toggleOverlay = useEditorStore((s) => s.toggleOverlay)
   const undo = useEditorStore((s) => s.undo)
   const redo = useEditorStore((s) => s.redo)
@@ -87,7 +84,6 @@ export function EditorLayout() {
   const clearHighlights = useEditorStore((s) => s.clearHighlights)
   const saveLayout = useEditorStore((s) => s.saveLayout)
   const selectBlock = useEditorStore((s) => s.selectBlock)
-  const runValidation = useEditorStore((s) => s.runValidation)
   const startSimulation = useEditorStore((s) => s.startSimulation)
 
   const [loading, setLoading] = useState<boolean>(true)
@@ -101,6 +97,7 @@ export function EditorLayout() {
   const [exportModal, setExportModal] = useState<ExportModalState | null>(null)
   const [blockContextMenu, setBlockContextMenu] = useState<BlockContextMenuState | null>(null)
 
+  const runtimeStartRef = useRef(false)
   const autoSyncTimerRef = useRef<number | null>(null)
 
   // Initialize Sandbox automatically without login or project dashboard!
@@ -168,7 +165,8 @@ export function EditorLayout() {
     }
   }, [hydrateWorkspace, routeProjectId])
 
-  // Debounced silent SQLite auto-save + live topology validation when blocks change
+  // Debounced silent SQLite auto-save. The runtime is recreated from the
+  // persisted layout and then advances continuously below.
   useEffect(() => {
     if (saveStatus !== 'unsaved' || !projectId) {
       return
@@ -177,11 +175,7 @@ export function EditorLayout() {
       window.clearTimeout(autoSyncTimerRef.current)
     }
     autoSyncTimerRef.current = window.setTimeout(() => {
-      void saveLayout().then((ok) => {
-        if (ok && useEditorStore.getState().blocks.length > 0) {
-          void runValidation()
-        }
-      })
+      void saveLayout()
     }, 650)
 
     return () => {
@@ -189,7 +183,43 @@ export function EditorLayout() {
         window.clearTimeout(autoSyncTimerRef.current)
       }
     }
-  }, [blocks, projectId, runValidation, saveLayout, saveStatus])
+  }, [blocks, projectId, saveLayout, saveStatus])
+
+  // AE2 runtime: there is no user-triggered simulate/step flow. Once the
+  // layout is saved, create the live run and advance it at 20 Minecraft TPS.
+  useEffect(() => {
+    if (loading || !projectId || blocks.length === 0 || saveStatus !== 'saved') {
+      return
+    }
+
+    const startRuntime = async () => {
+      const state = useEditorStore.getState()
+      if (state.simulationRun || state.actionBusy || runtimeStartRef.current) {
+        return
+      }
+      runtimeStartRef.current = true
+      try {
+        await startSimulation()
+      } finally {
+        runtimeStartRef.current = false
+      }
+    }
+
+    void startRuntime()
+    const runtimeTimer = window.setInterval(() => {
+      const state = useEditorStore.getState()
+      if (
+        state.actionBusy ||
+        !state.simulationRun ||
+        state.simulationRun.status !== 'running'
+      ) {
+        return
+      }
+      void state.stepSimulation(5)
+    }, 250)
+
+    return () => window.clearInterval(runtimeTimer)
+  }, [blocks.length, loading, projectId, saveStatus, startSimulation])
 
   // Keyboard shortcuts (1-9 hotbar, E block palette, R rotate, X break, C configure, Esc hand/close, Undo/Redo/Copy/Paste)
   useEffect(() => {
@@ -287,8 +317,6 @@ export function EditorLayout() {
           setPaletteOpen(false)
         } else if (inspectorOpen) {
           setInspectorOpen(false)
-        } else if (simDrawerOpen) {
-          setSimDrawerOpen(false)
         } else {
           setActiveBlockDefId(null)
           clearHighlights()
@@ -314,8 +342,6 @@ export function EditorLayout() {
     selectedBlockIds.length,
     setActiveBlockDefId,
     setInspectorOpen,
-    setSimDrawerOpen,
-    simDrawerOpen,
     blockContextMenu,
     undo,
   ])
@@ -399,19 +425,6 @@ export function EditorLayout() {
     setBlockContextMenu(null)
   }
 
-  const handleValidateClick = async () => {
-    const res = await runValidation()
-    if (res && !res.valid) {
-      setSimDrawerOpen(true)
-    }
-  }
-
-  const handleSimulateClick = async () => {
-    setSimDrawerOpen(true)
-    if (!simulationRun && blocks.length > 0) {
-      await startSimulation()
-    }
-  }
 
   const handleExportJson = async () => {
     setExportMenuOpen(false)
@@ -444,13 +457,7 @@ export function EditorLayout() {
     const preset = SANDBOX_PRESETS.find((p) => p.id === presetId)
     if (!preset) return
     loadPresetOperations(preset.operations)
-    const saved = await saveLayout()
-    if (saved) {
-      const res = await runValidation()
-      if (res && !res.valid) {
-        setSimDrawerOpen(true)
-      }
-    }
+    await saveLayout()
   }
 
   const handleDownloadModal = () => {
@@ -707,7 +714,7 @@ export function EditorLayout() {
         )}
       </header>
 
-      {/* Top-Right Network Status & Simulation Trigger Pill */}
+      {/* Top-Right Network Status & Runtime Pill */}
       <div className="hud-pill hud-top-right">
         {blocks.length === 0 ? (
           <span className="hud-status-text">Empty Sandbox · Click grid to place blocks</span>
@@ -763,23 +770,9 @@ export function EditorLayout() {
           Channels
         </button>
 
-        <button
-          type="button"
-          className="hud-btn"
-          disabled={actionBusy}
-          onClick={() => void handleValidateClick()}
-        >
-          Validate
-        </button>
-
-        <button
-          type="button"
-          className={`hud-btn hud-btn-accent ${simDrawerOpen ? 'active' : ''}`}
-          disabled={actionBusy}
-          onClick={() => void handleSimulateClick()}
-        >
-          Simulate{errorCount > 0 ? ` (${errorCount})` : ''}
-        </button>
+        <span className="badge badge-exact" aria-label="ME runtime status">
+          RUNTIME {simulationRun?.status.toUpperCase() ?? 'STARTING'}
+        </span>
       </div>
 
       {/* Bottom-Center Minecraft Creative Hotbar & Dye Color Picker */}
@@ -979,18 +972,12 @@ export function EditorLayout() {
         </div>
       )}
 
-      {/* Floating On-Demand Simulation & Diagnostics Drawer */}
-      {simDrawerOpen && (
+      {/* Always-on ME runtime monitor; execution is automatic and has no run controls. */}
+      {simulationRun && (
         <div className="floating-sim-panel">
           <div className="floating-panel-bar">
-            <span>AE2 Simulation & Diagnostics</span>
-            <button
-              type="button"
-              className="hud-btn"
-              onClick={() => setSimDrawerOpen(false)}
-            >
-              ✕
-            </button>
+            <span>ME Network Runtime</span>
+            <span className="badge">TICK {simulationRun.current_tick}</span>
           </div>
           <div className="floating-sim-body">
             <SimulationConsole />
