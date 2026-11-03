@@ -108,8 +108,8 @@ The production release path is ARM/Bicep-based. The `Deploy to Azure` workflow r
 2. Logs in to Azure through OIDC.
 3. Runs `azure/arm-deploy@v2` at subscription scope against `deployments/azure/subscription.bicep`.
 4. The subscription template creates or updates the Resource Group, then invokes `deployments/azure/main.bicep` for the VM, managed disk, storage account, RBAC assignment, and VM Custom Script extension.
-5. The extension waits for Docker, writes the production Compose file and first-run `.env`, logs in to GHCR using the read-only pull token, and runs `docker compose pull` / `up -d` using the immutable SHA tag.
-6. The workflow checks `PUBLIC_BASE_URL/ready` over HTTPS.
+5. The extension waits for Docker, mounts the managed disk, writes the production Compose file and first-run `.env`, configures an HTTP Nginx reverse proxy, logs in to GHCR using the read-only pull token, and runs `docker compose pull` / `up -d` using the immutable SHA tag.
+6. The workflow checks the HTTP `/ready` endpoint by default; setting `PUBLIC_BASE_URL` switches the check to the supplied URL, including HTTPS after TLS bootstrap.
 
 Configure these GitHub **environment variables** in the `production` environment:
 
@@ -121,7 +121,7 @@ Configure these GitHub **environment variables** in the `production` environment
 | `AZURE_ADMIN_USERNAME` | VM SSH administrator |
 | `AZURE_SSH_ALLOWED_CIDR` | Operator IP/CIDR allowed on port 22 |
 | `AZURE_DNS_LABEL_PREFIX` | Public Azure DNS label |
-| `PUBLIC_BASE_URL` | Public HTTPS URL used by the readiness check |
+| `PUBLIC_BASE_URL` | Optional public URL used by the readiness check; set it to the HTTPS URL after TLS is configured |
 
 Configure these **secrets**:
 

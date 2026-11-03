@@ -60,6 +60,32 @@ var storageAccountName = take(toLower('melab${uniqueString(resourceGroup().id, e
 var backupContainerName = 'sqlite-backups'
 
 var composeFileBase64 = base64(loadTextContent('compose.prod.yaml'))
+var nginxHttpConfigBase64 = base64('''
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    client_max_body_size 2m;
+
+    location ~ ^/(api/|docs|openapi\.json|health|ready) {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto http;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8081;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto http;
+    }
+}
+''')
 var appDeployScript = format('''
 #!/bin/bash
 set -euo pipefail
@@ -111,6 +137,17 @@ if ! mountpoint -q /mnt/melab-data; then
 fi
 chown -R 10001:10001 /mnt/melab-data
 chmod 0750 /mnt/melab-data
+if ! command -v nginx >/dev/null 2>&1; then
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update
+  apt-get install -y nginx
+fi
+printf '%s' '{9}' | base64 -d > /etc/nginx/sites-available/me-lab-http.conf
+rm -f /etc/nginx/sites-enabled/default
+ln -sfn /etc/nginx/sites-available/me-lab-http.conf /etc/nginx/sites-enabled/me-lab-http.conf
+nginx -t
+systemctl enable --now nginx
+systemctl reload nginx
 mkdir -p /opt/me-lab/deployments/azure
 printf '%s' '{0}' | base64 -d > /opt/me-lab/deployments/azure/compose.prod.yaml
 
@@ -146,7 +183,7 @@ cd /opt/me-lab
 IMAGE_TAG="$image_tag" GITHUB_REPOSITORY="$github_repository" docker compose --env-file /opt/me-lab/.env -f deployments/azure/compose.prod.yaml pull
 IMAGE_TAG="$image_tag" GITHUB_REPOSITORY="$github_repository" docker compose --env-file /opt/me-lab/.env -f deployments/azure/compose.prod.yaml up -d --remove-orphans
 docker logout ghcr.io >/dev/null 2>&1 || true
-''', composeFileBase64, base64(jwtSecret), base64(corsAllowedOrigins), base64(githubRepository), base64(storageAccountName), base64(backupContainerName), base64(ghcrPullToken), base64(ghcrUsername), base64(appImageTag))
+''', composeFileBase64, base64(jwtSecret), base64(corsAllowedOrigins), base64(githubRepository), base64(storageAccountName), base64(backupContainerName), base64(ghcrPullToken), base64(ghcrUsername), base64(appImageTag), nginxHttpConfigBase64)
 var appDeployCommand = format('printf %s {0} | base64 -d > /tmp/me-lab-deploy.sh && chmod 700 /tmp/me-lab-deploy.sh && /bin/bash /tmp/me-lab-deploy.sh', base64(appDeployScript))
 
 // Azure built-in role: Storage Blob Data Contributor

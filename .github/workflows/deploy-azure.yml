@@ -40,6 +40,7 @@ jobs:
           ssh_cidr="${SSH_CIDR_OVERRIDE:?AZURE_SSH_ALLOWED_CIDR must be configured}"
           dns_label="${DNS_LABEL_OVERRIDE:-melab-ae2-prod}"
           public_url="${PUBLIC_URL_OVERRIDE:-https://${dns_label}.${location}.cloudapp.azure.com}"
+          health_url="${PUBLIC_URL_OVERRIDE:-http://${dns_label}.${location}.cloudapp.azure.com}"
           {
             echo "resource_group=$resource_group"
             echo "location=$location"
@@ -48,6 +49,7 @@ jobs:
             echo "ssh_cidr=$ssh_cidr"
             echo "dns_label=$dns_label"
             echo "public_url=$public_url"
+            echo "health_url=$health_url"
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry
@@ -109,12 +111,12 @@ jobs:
             jwtSecret="${{ secrets.AZURE_JWT_SECRET }}"
             corsAllowedOrigins=${{ steps.config.outputs.public_url }}
 
-      - name: Post-deployment HTTPS health & readiness check
+      - name: Post-deployment HTTP health & readiness check
         run: |
           for attempt in $(seq 1 12); do
             echo "Readiness check attempt ${attempt}/12"
-            if curl -fsS "${{ steps.config.outputs.public_url }}/ready" | jq -e '.status == "ok"'; then
-              echo "Deployment verified healthy at ${{ steps.config.outputs.public_url }}"
+            if curl -fsS "${{ steps.config.outputs.health_url }}/ready" | jq -e '.status == "ok"'; then
+              echo "Deployment verified healthy at ${{ steps.config.outputs.health_url }}"
               exit 0
             fi
             sleep 5
