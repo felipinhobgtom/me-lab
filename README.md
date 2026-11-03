@@ -210,7 +210,7 @@ make test-frontend
 Full Bicep infrastructure-as-code, cloud-init, production Compose, Nginx TLS configuration, and backup/restore runbooks are documented in [`docs/operations/azure-deployment-and-backups.md`](docs/operations/azure-deployment-and-backups.md).
 
 - **GitHub Actions ARM configuration:** The workflow runs on every push. Configure repository/environment variables `AZURE_RESOURCE_GROUP` (optional; defaults to `rg-melab-prod`), `AZURE_LOCATION`, `AZURE_VM_SIZE`, `AZURE_ADMIN_USERNAME`, `AZURE_SSH_ALLOWED_CIDR`, `AZURE_DNS_LABEL_PREFIX`, and optional `PUBLIC_BASE_URL`; configure secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_SSH_PUBLIC_KEY`, `AZURE_JWT_SECRET`, and a read-only `GHCR_PULL_TOKEN`. It deploys `deployments/azure/subscription.bicep` through `azure/arm-deploy@v2`, which creates the Resource Group when absent and invokes the application Bicep.
-- **Provisioned Resources & Estimated Student Cost (`eastus2` / `brazilsouth`):**
+- **Provisioned Resources & Estimated Student Cost (`brazilsouth`):**
   - `Standard_B2s` Linux VM: ~$30–35/month if running 24/7 (~$0.04/hour while active; **$0 compute when deallocated**).
   - 32 GiB `StandardSSD_LRS` Managed Data Disk (`/mnt/melab-data`): ~$2.40/month.
   - Standard Static Public IPv4 + `Standard_LRS` Blob Storage (`sqlite-backups`): ~$3.80/month combined.

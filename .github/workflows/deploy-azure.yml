@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           resource_group="${RESOURCE_GROUP_OVERRIDE:-rg-melab-prod}"
-          location="${LOCATION_OVERRIDE:-eastus2}"
+          location="${LOCATION_OVERRIDE:-brazilsouth}"
           vm_size="${VM_SIZE_OVERRIDE:-Standard_B2s}"
           admin_username="${ADMIN_USERNAME_OVERRIDE:-azureuser}"
           ssh_cidr="${SSH_CIDR_OVERRIDE:?AZURE_SSH_ALLOWED_CIDR must be configured}"

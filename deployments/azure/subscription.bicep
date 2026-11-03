@@ -4,7 +4,7 @@ targetScope = 'subscription'
 param resourceGroupName string = 'rg-melab-prod'
 
 @description('Azure region for the Resource Group and ME Lab resources.')
-param location string = 'eastus2'
+param location string = 'brazilsouth'
 
 @description('Short environment identifier.')
 param environmentName string = 'prod'

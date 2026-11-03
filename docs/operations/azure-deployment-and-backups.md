@@ -27,7 +27,7 @@ This operations guide covers provisioning, TLS setup, persistent SQLite disk man
 ```bash
 export AZURE_SUBSCRIPTION_ID="dc2c9f51-6f1f-49ec-98ee-92134af867f5"
 export AZURE_RG="rg-melab-prod"
-export AZURE_LOCATION="eastus2"
+export AZURE_LOCATION="brazilsouth"
 export DNS_LABEL="melab-ae2-prod"
 export MY_SSH_CIDR="$(curl -fsS https://checkip.amazonaws.com | tr -d '\n')/32"
 export GHCR_USERNAME="your-github-user"
@@ -116,7 +116,7 @@ Configure these GitHub **environment variables** in the `production` environment
 | Variable | Purpose |
 | --- | --- |
 | `AZURE_RESOURCE_GROUP` | Resource Group name; defaults to `rg-melab-prod` and is created by ARM if absent |
-| `AZURE_LOCATION` | Azure region, for example `eastus2` |
+| `AZURE_LOCATION` | Azure region; Azure for Students currently allows `brazilsouth`, `mexicocentral`, `chilecentral`, `spaincentral`, or `southcentralus` |
 | `AZURE_VM_SIZE` | Usually `Standard_B2s` |
 | `AZURE_ADMIN_USERNAME` | VM SSH administrator |
 | `AZURE_SSH_ALLOWED_CIDR` | Operator IP/CIDR allowed on port 22 |
