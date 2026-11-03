@@ -17,7 +17,16 @@ import (
 type ExternalInventoryState struct {
 	Block    domain.PlacedBlock `json:"block"`
 	Capacity int                `json:"capacity"`
-	Items    []domain.ItemStack `json:"items"`
+	// Items remains the legacy container inventory. Furnace slots use the explicit fields below.
+	Items         []domain.ItemStack `json:"items"`
+	Input         []domain.ItemStack `json:"input"`
+	Fuel          []domain.ItemStack `json:"fuel"`
+	Output        []domain.ItemStack `json:"output"`
+	Lit           bool               `json:"lit"`
+	CookTime      int                `json:"cook_time"`
+	CookTimeTotal int                `json:"cook_time_total"`
+	BurnTime      int                `json:"burn_time"`
+	BurnTimeTotal int                `json:"burn_time_total"`
 }
 
 // BusState models an Import Bus, Export Bus, or Storage Bus attached to a network.
@@ -76,7 +85,13 @@ func InitializeAutomation(
 		inv := &ExternalInventoryState{
 			Block:    node.Block,
 			Capacity: inventoryCapacity(node.Block),
-			Items:    parseConfiguredItems(node.Block.Config),
+			Items:    parseContainerItems(node.Block),
+		}
+		if isFurnace(node.Block.BlockDefID) {
+			inv.Input = parseConfiguredSlot(node.Block.Config, "input")
+			inv.Fuel = parseConfiguredSlot(node.Block.Config, "fuel")
+			inv.Output = parseConfiguredSlot(node.Block.Config, "output")
+			inv.CookTimeTotal = furnaceCookTimeTotal(node.Block.BlockDefID)
 		}
 		st.ExternalInventories = append(st.ExternalInventories, inv)
 		inventoryByCoord[node.Coord] = inv
@@ -172,7 +187,7 @@ func (s *State) StepBuses(networkEnergy map[string]bool) []BusTransfer {
 		remaining := transferLimit(bus.Acceleration)
 		switch bus.Kind {
 		case "ae2:import_bus":
-			for _, stack := range sortedStacks(inv.Items) {
+			for _, stack := range importStacks(inv) {
 				if remaining <= 0 {
 					break
 				}
@@ -185,7 +200,7 @@ func (s *State) StepBuses(networkEnergy map[string]bool) []BusTransfer {
 				if moved <= 0 {
 					continue
 				}
-				removeInventoryItems(inv, stack.ItemID, moved)
+				removeImportedItems(inv, stack.ItemID, moved)
 				remaining -= moved
 				bus.LastTransferred += moved
 				transfers = append(transfers, BusTransfer{BusID: bus.BlockID, Kind: "import", NetworkID: bus.NetworkID, SourceID: bus.TargetBlockID, TargetID: bus.NetworkID, ItemID: stack.ItemID, Quantity: moved})
@@ -194,7 +209,7 @@ func (s *State) StepBuses(networkEnergy map[string]bool) []BusTransfer {
 			if len(bus.Filters) == 0 {
 				continue
 			}
-			room := inv.Capacity - inventoryItemCount(inv.Items)
+			room := inv.Capacity - machineItemCount(inv)
 			if room <= 0 {
 				continue
 			}
@@ -213,7 +228,7 @@ func (s *State) StepBuses(networkEnergy map[string]bool) []BusTransfer {
 				if moved <= 0 {
 					continue
 				}
-				addInventoryItems(inv, stack.ItemID, moved)
+				addExportedItems(inv, stack.ItemID, moved)
 				remaining -= moved
 				bus.LastTransferred += moved
 				transfers = append(transfers, BusTransfer{BusID: bus.BlockID, Kind: "export", NetworkID: bus.NetworkID, SourceID: bus.NetworkID, TargetID: bus.TargetBlockID, ItemID: stack.ItemID, Quantity: moved})
@@ -286,7 +301,7 @@ func isExternalInventory(node *world.Node) bool {
 		return false
 	}
 	switch node.Block.BlockDefID {
-	case "minecraft:chest", "minecraft:barrel", "minecraft:furnace", "minecraft:blast_furnace", "ae2:inscriber", "ae2:charger", "melab:external_machine":
+	case "minecraft:chest", "minecraft:barrel", "minecraft:hopper", "minecraft:furnace", "minecraft:blast_furnace", "ae2:inscriber", "ae2:charger", "melab:external_machine":
 		return true
 	default:
 		return node.Def.BehaviorKey == "external_storage" || node.Def.BehaviorKey == "external_machine"
@@ -300,9 +315,18 @@ func inventoryCapacity(block domain.PlacedBlock) int {
 	switch block.BlockDefID {
 	case "minecraft:furnace", "minecraft:blast_furnace", "ae2:inscriber", "ae2:charger", "melab:external_machine":
 		return 3 * 64
+	case "minecraft:hopper":
+		return 5 * 64
 	default:
 		return 27 * 64
 	}
+}
+
+func parseContainerItems(block domain.PlacedBlock) []domain.ItemStack {
+	if isFurnace(block.BlockDefID) {
+		return []domain.ItemStack{}
+	}
+	return parseConfiguredItems(block.Config)
 }
 
 func parseConfiguredItems(cfg map[string]any) []domain.ItemStack {
@@ -325,6 +349,43 @@ func parseConfiguredItems(cfg map[string]any) []domain.ItemStack {
 		return []domain.ItemStack{}
 	}
 	return sortedStacks(items)
+}
+
+func parseConfiguredSlot(cfg map[string]any, key string) []domain.ItemStack {
+	if cfg == nil || cfg[key] == nil {
+		return []domain.ItemStack{}
+	}
+	data, err := json.Marshal(cfg[key])
+	if err != nil {
+		return []domain.ItemStack{}
+	}
+	var items []domain.ItemStack
+	if json.Unmarshal(data, &items) != nil {
+		var item domain.ItemStack
+		if json.Unmarshal(data, &item) != nil {
+			return []domain.ItemStack{}
+		}
+		items = []domain.ItemStack{item}
+	}
+	items = sortedStacks(items)
+	if len(items) > 1 {
+		items = items[:1]
+	}
+	if len(items) == 1 && items[0].Quantity > 64 {
+		items[0].Quantity = 64
+	}
+	return items
+}
+
+func isFurnace(blockID string) bool {
+	return blockID == "minecraft:furnace" || blockID == "minecraft:blast_furnace"
+}
+
+func furnaceCookTimeTotal(blockID string) int {
+	if blockID == "minecraft:blast_furnace" {
+		return 100
+	}
+	return 200
 }
 
 func inventoryBlockID(inventories map[domain.Coord3D]*ExternalInventoryState, coord domain.Coord3D) string {
@@ -427,6 +488,73 @@ func inventoryItemCount(items []domain.ItemStack) int {
 	return total
 }
 
+func importStacks(inv *ExternalInventoryState) []domain.ItemStack {
+	if isFurnace(inv.Block.BlockDefID) {
+		return sortedStacks(inv.Output)
+	}
+	return sortedStacks(inv.Items)
+}
+
+func removeImportedItems(inv *ExternalInventoryState, itemID string, quantity int) {
+	if isFurnace(inv.Block.BlockDefID) {
+		removeSlotItems(&inv.Output, itemID, quantity)
+		return
+	}
+	removeInventoryItems(inv, itemID, quantity)
+}
+
+func machineItemCount(inv *ExternalInventoryState) int {
+	if !isFurnace(inv.Block.BlockDefID) {
+		return inventoryItemCount(inv.Items)
+	}
+	return inventoryItemCount(inv.Input) + inventoryItemCount(inv.Fuel) + inventoryItemCount(inv.Output)
+}
+
+func addExportedItems(inv *ExternalInventoryState, itemID string, quantity int) {
+	if !isFurnace(inv.Block.BlockDefID) {
+		addInventoryItems(inv, itemID, quantity)
+		return
+	}
+	if fuelBurnTime(itemID) > 0 {
+		addSlotItems(&inv.Fuel, itemID, quantity)
+		return
+	}
+	if furnaceInputAllowed(inv.Block.BlockDefID, itemID) {
+		addSlotItems(&inv.Input, itemID, quantity)
+	}
+}
+
+func addSlotItems(slots *[]domain.ItemStack, itemID string, quantity int) {
+	if quantity <= 0 || itemID == "" {
+		return
+	}
+	for i := range *slots {
+		if (*slots)[i].ItemID != itemID {
+			continue
+		}
+		(*slots)[i].Quantity += quantity
+		return
+	}
+	*slots = append(*slots, domain.ItemStack{ItemID: itemID, Quantity: quantity})
+	*slots = sortedStacks(*slots)
+}
+
+func removeSlotItems(slots *[]domain.ItemStack, itemID string, quantity int) {
+	if quantity <= 0 {
+		return
+	}
+	for i := range *slots {
+		if (*slots)[i].ItemID != itemID {
+			continue
+		}
+		(*slots)[i].Quantity -= quantity
+		if (*slots)[i].Quantity <= 0 {
+			*slots = append((*slots)[:i], (*slots)[i+1:]...)
+		}
+		return
+	}
+}
+
 func addInventoryItems(inv *ExternalInventoryState, itemID string, quantity int) {
 	if quantity <= 0 {
 		return
@@ -488,7 +616,10 @@ func (s *State) ExternalInventoryViews() []domain.ExternalInventoryView {
 	views := make([]domain.ExternalInventoryView, 0, len(s.ExternalInventories))
 	for _, inv := range s.ExternalInventories {
 		views = append(views, domain.ExternalInventoryView{
-			BlockID: inv.Block.ID, Coord: inv.Block.Coord(), Capacity: inv.Capacity, Items: sortedStacks(inv.Items),
+			BlockID: inv.Block.ID, Coord: inv.Block.Coord(), Capacity: inv.Capacity,
+			Items: sortedStacks(inv.Items), Input: sortedStacks(inv.Input), Fuel: sortedStacks(inv.Fuel),
+			Output: sortedStacks(inv.Output), Lit: inv.Lit, CookTime: inv.CookTime,
+			CookTimeTotal: inv.CookTimeTotal, BurnTime: inv.BurnTime, BurnTimeTotal: inv.BurnTimeTotal,
 		})
 	}
 	return views

@@ -325,6 +325,60 @@ describe('ME Lab zero-login AE2 sandbox', () => {
     expect(screen.getByText('ME Drive & Storage Cells')).toBeInTheDocument()
   })
 
+  it('opens a vanilla chest inventory and inserts items through its live slots', async () => {
+    mockBackend()
+    renderApp()
+    await screen.findByText(/Empty Sandbox/i)
+
+    const state = useEditorStore.getState()
+    state.setViewMode('2d')
+    state.setActiveBlockDefId('minecraft:chest')
+    state.placeBlockAt({ x: 0, y: 0, z: 0 }, 'south')
+    await waitFor(() => expect(screen.getByTestId('grid-cell-0-0-0')).toHaveClass('selected'))
+
+    fireEvent.doubleClick(screen.getByTestId('grid-cell-0-0-0'))
+    expect(screen.getByTestId('container-inventory-panel')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Container item ID'), {
+      target: { value: 'minecraft:oak_log' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Insert' }))
+
+    expect(useEditorStore.getState().blocks[0].config.inventory).toEqual([
+      { item_id: 'minecraft:oak_log', quantity: 1 },
+    ])
+  })
+
+  it('opens a furnace and feeds input and fuel into the automatic runtime', async () => {
+    mockBackend()
+    renderApp()
+    await screen.findByText(/Empty Sandbox/i)
+
+    const state = useEditorStore.getState()
+    state.setViewMode('2d')
+    state.setActiveBlockDefId('minecraft:furnace')
+    state.placeBlockAt({ x: 0, y: 0, z: 0 }, 'south')
+    await waitFor(() => expect(screen.getByTestId('grid-cell-0-0-0')).toHaveClass('selected'))
+
+    fireEvent.doubleClick(screen.getByTestId('grid-cell-0-0-0'))
+    expect(screen.getByTestId('furnace-inventory-panel')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Machine item ID'), {
+      target: { value: 'minecraft:raw_iron' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Input' }))
+    fireEvent.change(screen.getByLabelText('Machine item ID'), {
+      target: { value: 'minecraft:coal' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Fuel' }))
+
+    expect(useEditorStore.getState().blocks[0].config.input).toEqual([
+      { item_id: 'minecraft:raw_iron', quantity: 1 },
+    ])
+    expect(useEditorStore.getState().blocks[0].config.fuel).toEqual([
+      { item_id: 'minecraft:coal', quantity: 1 },
+    ])
+  })
+
   it('reuses the remembered sandbox project instead of creating a new one', async () => {
     window.localStorage.setItem('melab_sandbox_project_id', 'proj-1')
     const { createProject, getProject } = mockBackend()

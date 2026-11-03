@@ -14,10 +14,41 @@ import {
   readPatternProviderConfig,
   type CableColor,
 } from '../../lib/ae2/constants'
-import type { Direction, DriveCellConfig, PatternSpec } from '../../lib/api'
+import type {
+  Direction,
+  DriveCellConfig,
+  ExternalInventoryView,
+  ItemStack,
+  PatternSpec,
+} from '../../lib/api'
 import { selectActiveOverlay, useEditorStore } from '../editor/store'
 import './BlockInspector.css'
 
+function configuredStacks(config: Record<string, unknown>, key: string): ItemStack[] {
+  const raw = config[key]
+  if (!Array.isArray(raw)) return []
+  return raw.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const item = entry as { item_id?: unknown; quantity?: unknown }
+    if (typeof item.item_id !== 'string' || !item.item_id) return []
+    const quantity = typeof item.quantity === 'number' ? Math.floor(item.quantity) : 0
+    return quantity > 0 ? [{ item_id: item.item_id, quantity }] : []
+  })
+}
+
+function addStack(items: ItemStack[], itemId: string, quantity: number): ItemStack[] {
+  const normalizedId = itemId.trim()
+  if (!normalizedId || quantity <= 0) return items
+  const existing = items.find((item) => item.item_id === normalizedId)
+  if (existing) {
+    return items.map((item) =>
+      item.item_id === normalizedId
+        ? { ...item, quantity: Math.min(64, item.quantity + quantity) }
+        : item
+    )
+  }
+  return [...items, { item_id: normalizedId, quantity: Math.min(64, quantity) }]
+}
 export function BlockInspector() {
   const blocks = useEditorStore((s) => s.blocks)
   const catalog = useEditorStore((s) => s.catalog)
@@ -31,6 +62,8 @@ export function BlockInspector() {
   const removeBlocks = useEditorStore((s) => s.removeBlocks)
 
   const [newPartitionInputs, setNewPartitionInputs] = useState<Record<number, string>>({})
+  const [itemIdInput, setItemIdInput] = useState('minecraft:raw_iron')
+  const [itemQuantityInput, setItemQuantityInput] = useState(1)
 
   const selectedBlocks = useMemo(
     () => blocks.filter((b) => selectedBlockIds.includes(b.id)),
@@ -50,6 +83,13 @@ export function BlockInspector() {
     () => selectActiveOverlay({ simulationRun, validationResult }),
     [simulationRun, validationResult]
   )
+  const externalInventory = useMemo<ExternalInventoryView | null>(() => {
+    if (!primaryBlock || !activeOverlay) return null
+    return (
+      activeOverlay.external_inventories?.find((inventory) => inventory.block_id === primaryBlock.id) ??
+      null
+    )
+  }, [activeOverlay, primaryBlock])
 
   const blockTelemetry = useMemo(() => {
     if (!primaryBlock || !activeOverlay) {
@@ -176,6 +216,50 @@ export function BlockInspector() {
     primaryBlock.block_def_id === 'ae2:storage_bus'
       ? readBusConfig(primaryBlock.config)
       : null
+  const isInventoryBlock =
+    primaryBlock.block_def_id === 'minecraft:chest' ||
+    primaryBlock.block_def_id === 'minecraft:barrel' ||
+    primaryBlock.block_def_id === 'minecraft:hopper' ||
+    primaryBlock.block_def_id === 'ae2:inscriber' ||
+    primaryBlock.block_def_id === 'ae2:charger' ||
+    primaryBlock.block_def_id === 'melab:external_machine'
+  const inventorySlotCount =
+    primaryBlock.block_def_id === 'minecraft:hopper' ? 5 : 27
+  const isVanillaMachine =
+    primaryBlock.block_def_id === 'minecraft:furnace' ||
+    primaryBlock.block_def_id === 'minecraft:blast_furnace'
+  const containerItems =
+    externalInventory?.items ?? configuredStacks(primaryBlock.config, 'inventory')
+  const machineInput =
+    externalInventory?.input ?? configuredStacks(primaryBlock.config, 'input')
+  const machineFuel =
+    externalInventory?.fuel ?? configuredStacks(primaryBlock.config, 'fuel')
+  const machineOutput =
+    externalInventory?.output ?? configuredStacks(primaryBlock.config, 'output')
+  const patchStackList = (key: string, items: ItemStack[]) => {
+    patchConfig({ [key]: items })
+  }
+  const addItemTo = (key: string) => {
+    const current =
+      key === 'inventory'
+        ? containerItems
+        : key === 'input'
+          ? machineInput
+          : machineFuel
+    const next = addStack(current, itemIdInput, itemQuantityInput)
+    patchStackList(key, next)
+  }
+  const removeItemFrom = (key: string, index: number) => {
+    const current =
+      key === 'inventory'
+        ? containerItems
+        : key === 'input'
+          ? machineInput
+          : key === 'fuel'
+            ? machineFuel
+            : machineOutput
+    patchStackList(key, current.filter((_, itemIndex) => itemIndex !== index))
+  }
   return (
     <aside className="block-inspector" aria-label="Block Inspector">
       <div className="inspector-header">
@@ -283,6 +367,144 @@ export function BlockInspector() {
             </div>
           </div>
         </div>
+
+        {isInventoryBlock && (
+          <div className="inspector-card" data-testid="container-inventory-panel">
+            <div className="inspector-section-title">
+              {primaryBlock.block_def_id === 'minecraft:barrel'
+                ? 'Barrel Inventory'
+                : primaryBlock.block_def_id === 'minecraft:hopper'
+                  ? 'Hopper Inventory'
+                  : primaryBlock.block_def_id === 'minecraft:chest'
+                    ? 'Chest Inventory'
+                    : `${primaryDef?.name ?? 'Block'} Inventory`}
+            </div>
+            <div className="inventory-slot-grid" aria-label="Container inventory">
+              {Array.from({ length: inventorySlotCount }, (_, slot) => {
+                const stack = containerItems[slot]
+                return (
+                  <button
+                    type="button"
+                    key={`${primaryBlock.id}-slot-${slot}`}
+                    className={`inventory-slot ${stack ? 'filled' : ''}`}
+                    title={stack ? `Remove ${stack.item_id}` : `Empty slot ${slot + 1}`}
+                    onClick={() => stack && removeItemFrom('inventory', slot)}
+                  >
+                    <span>{stack?.item_id.split(':').at(-1) ?? ''}</span>
+                    {stack && <strong>{stack.quantity}</strong>}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="inspector-inline-row">
+              <input
+                aria-label="Container item ID"
+                type="text"
+                value={itemIdInput}
+                onChange={(e) => setItemIdInput(e.target.value)}
+                placeholder="minecraft:oak_log"
+              />
+              <input
+                aria-label="Container item quantity"
+                type="number"
+                min={1}
+                max={64}
+                value={itemQuantityInput}
+                onChange={(e) => setItemQuantityInput(Math.max(1, Number(e.target.value) || 1))}
+                style={{ maxWidth: 64 }}
+              />
+              <button type="button" className="btn" onClick={() => addItemTo('inventory')}>
+                Insert
+              </button>
+            </div>
+            <span className="inspector-block-id">
+              {inventorySlotCount} slots · runtime inventory is authoritative; click a filled slot to extract it.
+            </span>
+          </div>
+        )}
+
+        {isVanillaMachine && (
+          <div className="inspector-card" data-testid="furnace-inventory-panel">
+            <div className="inspector-section-title">
+              {primaryBlock.block_def_id === 'minecraft:blast_furnace'
+                ? 'Blast Furnace'
+                : 'Furnace'} Runtime
+            </div>
+            <div className="machine-slots">
+              <div className="machine-slot">
+                <span>Input</span>
+                <strong>{machineInput[0]?.item_id ?? 'empty'}</strong>
+                <small>{machineInput[0]?.quantity ?? 0}</small>
+              </div>
+              <div className="machine-slot">
+                <span>Fuel</span>
+                <strong>{machineFuel[0]?.item_id ?? 'empty'}</strong>
+                <small>{machineFuel[0]?.quantity ?? 0}</small>
+              </div>
+              <div className="machine-slot machine-slot-output">
+                <span>Output</span>
+                <strong>{machineOutput[0]?.item_id ?? 'empty'}</strong>
+                <small>{machineOutput[0]?.quantity ?? 0}</small>
+              </div>
+            </div>
+            <div className="machine-status">
+              <span>{externalInventory?.lit ? 'LIT' : 'IDLE'}</span>
+              <span>
+                {externalInventory?.cook_time ?? 0}/{externalInventory?.cook_time_total ?? 200} ticks
+              </span>
+            </div>
+            <div className="machine-progress" aria-label="Furnace processing progress">
+              <span
+                style={{
+                  width: `${Math.min(
+                    100,
+                    ((externalInventory?.cook_time ?? 0) /
+                      Math.max(1, externalInventory?.cook_time_total ?? 200)) *
+                      100
+                  )}%`,
+                }}
+              />
+            </div>
+            <div className="inspector-inline-row">
+              <input
+                aria-label="Machine item ID"
+                type="text"
+                value={itemIdInput}
+                onChange={(e) => setItemIdInput(e.target.value)}
+                placeholder="minecraft:raw_iron"
+              />
+              <input
+                aria-label="Machine item quantity"
+                type="number"
+                min={1}
+                max={64}
+                value={itemQuantityInput}
+                onChange={(e) => setItemQuantityInput(Math.max(1, Number(e.target.value) || 1))}
+                style={{ maxWidth: 64 }}
+              />
+            </div>
+            <div className="inspector-inline-row">
+              <button type="button" className="btn" onClick={() => addItemTo('input')}>
+                Add Input
+              </button>
+              <button type="button" className="btn" onClick={() => addItemTo('fuel')}>
+                Add Fuel
+              </button>
+              {machineOutput.length > 0 && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => removeItemFrom('output', 0)}
+                >
+                  Take Output
+                </button>
+              )}
+            </div>
+            <span className="inspector-block-id">
+              Vanilla slots: input, fuel, output. Processing advances automatically at runtime.
+            </span>
+          </div>
+        )}
 
         {/* Cable Color & Anchors */}
         {showCableSection && cableCfg && (

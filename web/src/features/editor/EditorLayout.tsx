@@ -462,6 +462,15 @@ export function EditorLayout() {
   }
 
   const isContextStorageDrive = contextBlockDef?.behavior_key === 'drive'
+  const isContextInteractive = Boolean(
+    contextBlock &&
+      [
+        'minecraft:chest',
+        'minecraft:barrel',
+        'minecraft:furnace',
+        'minecraft:blast_furnace',
+      ].includes(contextBlock.block_def_id)
+  )
 
   const handleContextAction = (
     action: 'properties' | 'open-drive' | 'add-cell' | 'rotate' | 'duplicate' | 'remove'
@@ -582,7 +591,11 @@ export function EditorLayout() {
               handleContextAction(isContextStorageDrive ? 'open-drive' : 'properties')
             }
           >
-            {isContextStorageDrive ? 'Open ME Drive' : 'Properties'}
+            {isContextStorageDrive
+              ? 'Open ME Drive'
+              : isContextInteractive
+                ? `Open ${contextBlockDef?.name ?? 'Block'}`
+                : 'Properties'}
           </button>
           {isContextStorageDrive && (
             <button

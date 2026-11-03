@@ -43,6 +43,23 @@ Every catalog block carries an explicit `fidelity` classification (`internal/dom
 | `ae2:export_bus` | ME Export Bus | `storage` | `1` / cable-dependent | `approximated` | [Export Bus](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/export_bus) |
 | `ae2:quantum_ring` | ME Quantum Network Bridge | `network` | N/A (emits `UNSUPPORTED_MECHANIC`) | `unsupported` | [Quantum Bridge](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/quantum_bridge) |
 
+### 1.1 Vanilla container and furnace runtime
+
+The editor opens supported Minecraft inventories through the same right-click/double-click inspector used for AE2 devices. Inventory mutations are persisted into the block configuration and are consumed by the live runtime; there is no simulation or step button.
+
+- `minecraft:chest` and `minecraft:barrel` expose 27 inventory slots.
+- `minecraft:hopper` exposes its official 5 inventory slots.
+- `minecraft:furnace` exposes input, fuel, and output slots. A valid recipe consumes one fuel item, burns continuously, and completes after 200 game ticks.
+- `minecraft:blast_furnace` uses the same three slots and fuel burn times, but completes supported ore/raw-metal recipes in 100 game ticks.
+- The runtime currently implements these explicitly defined furnace recipes: raw iron, raw gold, raw copper, cobblestone, sand, and clay balls. An unlisted input remains idle instead of being processed with invented behavior.
+- Lit state, burn time, and cook progress are read-only runtime state and update continuously at 20 TPS.
+
+Version-matched sources consulted for this contract:
+- [Chest — Container](https://minecraft.wiki/w/Chest#Container)
+- [Furnace — Processing items](https://minecraft.wiki/w/Furnace#Processing_items)
+- [Blast Furnace — Smelting](https://minecraft.wiki/w/Blast_Furnace#Smelting)
+- [Smelting — Fuel](https://minecraft.wiki/w/Smelting#Fuel)
+
 ---
 
 ## 2. Exact Subsystem Rules & Mathematical Formulas

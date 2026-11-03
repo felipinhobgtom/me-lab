@@ -289,10 +289,18 @@ type AutomationBusOverlay struct {
 
 // ExternalInventoryView exposes the deterministic inventory attached to an automation target.
 type ExternalInventoryView struct {
-	BlockID  string      `json:"block_id"`
-	Coord    Coord3D     `json:"coord"`
-	Capacity int         `json:"capacity"`
-	Items    []ItemStack `json:"items"`
+	BlockID       string      `json:"block_id"`
+	Coord         Coord3D     `json:"coord"`
+	Capacity      int         `json:"capacity"`
+	Items         []ItemStack `json:"items"`
+	Input         []ItemStack `json:"input"`
+	Fuel          []ItemStack `json:"fuel"`
+	Output        []ItemStack `json:"output"`
+	Lit           bool        `json:"lit"`
+	CookTime      int         `json:"cook_time"`
+	CookTimeTotal int         `json:"cook_time_total"`
+	BurnTime      int         `json:"burn_time"`
+	BurnTimeTotal int         `json:"burn_time_total"`
 }
 
 // NetworkSummaryOverlay exposes per-network state for inspection in Debug Mode.

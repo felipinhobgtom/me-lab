@@ -296,6 +296,9 @@ func Step(
 	}
 	tickEvents := make([]domain.SimulationEvent, 0)
 	if state.Storage != nil {
+		state.Storage.StepExternalMachines()
+	}
+	if state.Storage != nil {
 		onlineByNetwork := make(map[string]bool, len(state.Energy))
 		for _, es := range state.Energy {
 			onlineByNetwork[es.NetworkID] = es.Online

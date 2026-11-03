@@ -1,6 +1,6 @@
-# ME Lab — AE2 Network Designer & Deterministic Simulator
+# ME Lab — AE2 Network Designer & Live Runtime
 
-**ME Lab** is a browser-based 3D/2D CAD editor and deterministic rule-based simulator for **Applied Energistics 2 (AE2)** installations (targeting **Minecraft 1.21.1 / AE2 19.2.x**). Design, validate, step-simulate autocrafting jobs, inspect channel paths, and export a Minecraft-ready build sheet before placing a single block in-game.
+**ME Lab** is a browser-based 3D/2D CAD editor and deterministic runtime for **Applied Energistics 2 (AE2)** installations (targeting **Minecraft 1.21.1 / AE2 19.2.x**). Design a network, inspect live channel and energy state, interact with inventories and machines, and export a Minecraft-ready build sheet before placing a single block in-game.
 
 ---
 
@@ -33,7 +33,7 @@
 
 - **Authentication & Multi-Tenant Project Isolation:** Argon2id (`m=65536, t=3, p=2`) password hashing, HS256 JWT authentication, and strict server-side project ownership checks across all `/api/v1` endpoints.
 - **3D + 2D Voxel CAD Workspace:** Interactive React Three Fiber 3D scene (orbit, top, front, side camera presets, WASD camera navigation with Shift sprint, direct hand-tool block dragging on the horizontal voxel plane, procedural non-proprietary meshes, dynamic 3D cable connector arms) paired with a synchronized 2D Y-layer slice editor, Undo/Redo stack, Copy/Paste/Duplicate, rotation (`R`), multi-select (`Shift+Click`), and truthful API-reconciled save status.
-- **Data-Driven AE2 1.21.1 Catalog & Profiles:** Embedded JSON compatibility profiles (`ae2-1.21.1-default`, `ae2-1.21.1-x2`, `ae2-1.21.1-infinite`) and 30 block definitions with explicit fidelity labels (`exact`, `approximated`, `unsupported`) including textured Minecraft furnaces, blast furnaces, barrels, and chests, with direct links to the [official AE2 1.21.1 guide](https://guide.appliedenergistics.org/1.21.1/index).
+- **Data-Driven AE2 1.21.1 Catalog & Profiles:** Embedded compatibility profiles (`ae2-1.21.1-default`, `ae2-1.21.1-x2`, `ae2-1.21.1-infinite`) and the catalog's block definitions with explicit fidelity labels (`exact`, `approximated`, `unsupported`) including textured Minecraft furnaces, blast furnaces, barrels, chests, and hoppers, with direct links to the [official AE2 1.21.1 guide](https://guide.appliedenergistics.org/1.21.1/index).
 - **Authoritative Go Simulation Engine (`internal/simulation/`):** Pure-Go domain engine completely decoupled from HTTP, SQLite, and frontend code:
   - **World & Connectivity (`world`):** Face-level port rules, colored vs. universal `fluix` cable isolation, Cable Anchors, directional Pattern Provider push-face network isolation, and unsupported block detection.
   - **Topology & Multiblocks (`network`):** Deterministic connected-component discovery, ME Controller multiblock validation (single connected cluster per network, `<= 7x7x7` span, `<= 1` opposite-neighbor axis per block), and Crafting CPU solid rectangular-prism validation.
@@ -41,6 +41,7 @@
   - **Energy Engine (`energy`):** Per-node `25 AE` buffers, `8,000 AE` Controller buffer (`6 AE/t` drain), `200k` / `1.6M` / Creative Energy Cells, `2 FE = 1 AE` Energy Acceptor conversion, `1/128 AE/t` channel traversal drain, active `20 AE/t` Molecular Assembler load, and tick-accurate brownout/recovery.
   - **Storage Engine (`storage`):** Exact AE2 cell byte & type capacity math (`63` max types, tier-specific `bytes_per_type` from `8 B` on `1k` to `2048 B` on `256k`, `ceil(qty / 8)` item bytes), whitelist/Inverter Card partitions, and drive `priority` ordering.
   - **Tick-Based Autocrafting (`crafting`):** Recursive recipe DAG planning, cycle detection (`RECURSIVE_CRAFTING_PATTERN`), Crafting CPU byte reservation, `1 + co_processors` parallel batch dispatches per tick, Pattern Provider `priority`, `blocking_mode`, and `until_result_returned` lock mode, round-robin Molecular Assembler execution, and persisted tick/sequence events (`job_created`, `ingredient_reserved`, `provider_dispatched`, `assembler_started`, `craft_completed`, `output_returned`, `job_completed`).
+- **Live Minecraft containers & machines:** Chests, barrels, hoppers, furnaces, and blast furnaces open from the block interaction surface; inventory mutations persist into the runtime, and supported smelting advances continuously with Minecraft tick timing. See the [version-matched compatibility contract](docs/architecture/ae2-compatibility-1.21.1.md#11-vanilla-container-and-furnace-runtime).
 - **Blueprint & Build Sheet Export:** Deterministic JSON blueprint (`/export/json`) and Markdown build sheet (`/export/build-sheet`) with Bill of Materials, Y-layer placement tables, cell partitions, encoded patterns, and pre-flight checklist.
 
 ---
@@ -56,8 +57,8 @@ Every catalog entry and simulated mechanic carries an explicit fidelity label (`
 | 3-Stage Controller Channel Routing | `exact` | Tiered shortest-path (`Device -> Normal -> Dense -> Controller Face`) exposing exact `[]Coord3D` routes |
 | ME Drive & Item Storage Cells (`1k`–`256k`) | `exact` | 63 types, exact `bytes_per_type`, 8 items/byte, priority, whitelist & Inverter partitions |
 | Crafting CPU, Pattern Provider & Molecular Assembler | `exact` | Solid prism CPU, `1 + co_processors` batch rate, directional push face, Blocking & Lock modes |
-| External Processing Machine (`melab:external_machine`) | `approximated` | Configurable tick-duration external machine modeling processing pattern execution & auto-return |
-| P2P Tunnels, Storage/Import/Export Buses, Quantum Ring | `unsupported` | Placed blocks emit explicit `UNSUPPORTED_MECHANIC` diagnostics rather than faking parity |
+| `melab:external_machine`, Storage/Import/Export Buses | `approximated` | Deterministic runtime processing and powered item-transfer model; exact external mod inventories are intentionally not claimed |
+| P2P Tunnels, Quantum Ring | `unsupported` | Placed blocks emit explicit `UNSUPPORTED_MECHANIC` diagnostics rather than faking parity |
 
 **Non-Goals:** ME Lab does not launch or host Minecraft, redistribute proprietary Minecraft/AE2 textures, attach to a live game server, or claim full modpack addon parity beyond tested profile rules.
 

@@ -341,8 +341,15 @@ export interface ExternalInventoryView {
   coord: Coord3D
   capacity: number
   items: ItemStack[]
+  input?: ItemStack[]
+  fuel?: ItemStack[]
+  output?: ItemStack[]
+  lit?: boolean
+  cook_time?: number
+  cook_time_total?: number
+  burn_time?: number
+  burn_time_total?: number
 }
-
 export interface NetworkSummaryOverlay {
   id: string
   has_controller: boolean

@@ -90,22 +90,7 @@
       "connection_rules": {
         "connect_all_faces": false
       },
-      "config_schema": [
-        {
-          "key": "process_ticks",
-          "label": "Smelt Ticks",
-          "type": "number",
-          "default": 8,
-          "description": "Simulation ticks per smelting operation."
-        },
-        {
-          "key": "auto_return",
-          "label": "Return Output to Network",
-          "type": "boolean",
-          "default": true,
-          "description": "Returns smelted items via adjacent Hopper, Import Bus, or Pattern Provider."
-        }
-      ],
+      "config_schema": [],
       "visual": {
         "color": "#737373",
         "accent_color": "#f97316",
@@ -136,15 +121,7 @@
       "connection_rules": {
         "connect_all_faces": false
       },
-      "config_schema": [
-        {
-          "key": "process_ticks",
-          "label": "Smelt Ticks",
-          "type": "number",
-          "default": 4,
-          "description": "Simulation ticks per smelting operation."
-        }
-      ],
+      "config_schema": [],
       "visual": {
         "color": "#525252",
         "accent_color": "#fb923c",

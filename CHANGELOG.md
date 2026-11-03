@@ -12,7 +12,7 @@ All notable changes to **ME Lab — AE2 Network Designer & Simulator** are docum
 - Runtime status is now rendered as a compact HUD indicator instead of a full-screen console. Offline AE2 blocks receive a subdued fault overlay and a hover-only status tooltip for missing channels, insufficient energy, invalid Controllers, and network-offline states. Sources: [Controller](https://guide.appliedenergistics.org/1.21.1/items-blocks-machines/controller/), [Channels](https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/channels/), [Energy](https://guide.appliedenergistics.org/1.21.1/ae2-mechanics/energy/), [Minecraft block states](https://minecraft.wiki/w/Block_states).
 - Minecraft-style E creative inventory: the block picker now uses pixel-art inventory slots, keyboard-friendly tab navigation, search, and explicit `Minecraft Vanilla` / `Applied Energistics 2` sections with AE2 category filters. Source: [Minecraft Creative inventory](https://minecraft.wiki/w/Creative_inventory).
 - API overlay for per-device online status, automation buses, and external inventories.
-- Minecraft chest renderer now separates body, lid, side, top, and bottom pixel textures instead of reusing the wooden-plank texture across all faces.
+- Live vanilla interactions: chests and barrels now expose persistent inventories, hoppers expose five slots, furnaces and blast furnaces expose input/fuel/output slots, and supported recipes process continuously at Minecraft tick rates with lit/cook/burn state. Sources: [Chest](https://minecraft.wiki/w/Chest#Container), [Furnace](https://minecraft.wiki/w/Furnace#Processing_items), [Blast Furnace](https://minecraft.wiki/w/Blast_Furnace#Smelting), and [Smelting fuel](https://minecraft.wiki/w/Smelting#Fuel).
 
 
 ## [1.0.0] - 2026-11-02
