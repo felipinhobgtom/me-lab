@@ -87,6 +87,30 @@ if ! docker info >/dev/null 2>&1; then
   systemctl status docker --no-pager >&2 || true
   exit 1
 fi
+data_device="/dev/disk/azure/scsi1/lun0"
+for attempt in $(seq 1 60); do
+  if [ -b "$data_device" ]; then
+    break
+  fi
+  sleep 2
+done
+if [ ! -b "$data_device" ]; then
+  echo "Managed data disk is not available at $data_device." >&2
+  exit 1
+fi
+if ! blkid "$data_device" >/dev/null 2>&1; then
+  mkfs.ext4 -L melab-data "$data_device"
+fi
+mkdir -p /mnt/melab-data
+disk_uuid="$(blkid -s UUID -o value "$data_device")"
+if ! grep -q "$disk_uuid" /etc/fstab; then
+  echo "UUID=$disk_uuid /mnt/melab-data ext4 defaults,nofail 0 2" >> /etc/fstab
+fi
+if ! mountpoint -q /mnt/melab-data; then
+  mount /mnt/melab-data
+fi
+chown -R 10001:10001 /mnt/melab-data
+chmod 0750 /mnt/melab-data
 mkdir -p /opt/me-lab/deployments/azure
 printf '%s' '{0}' | base64 -d > /opt/me-lab/deployments/azure/compose.prod.yaml
 
